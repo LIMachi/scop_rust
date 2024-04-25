@@ -1,15 +1,8 @@
 #version 330 core
-
 layout (location = 0) in vec3 pos;
-layout (location = 1) in vec2 uv;
 
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
-
-out vec2 p_uv;
+uniform mat4 test;
 
 void main() {
-	gl_Position = projection * view * model * vec4(pos, 1.0);
-	p_uv = uv;
+	gl_Position = vec4(pos.x, pos.y, pos.z, 1.0) * test;
 }

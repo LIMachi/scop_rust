@@ -16,3 +16,13 @@ pub struct Object {
     pub normals: Vec<[f32; 3]>,
     pub faces: Vec<Face>,
 }
+
+impl Object {
+    pub fn triangles(&self) -> Vec<[f32; 3]> {
+        let mut out = Vec::new();
+        for face in self.faces.iter() {
+            out.extend(face.vertices(&self.points));
+        }
+        out
+    } 
+}

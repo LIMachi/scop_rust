@@ -1,8 +1,14 @@
 mod parser;
 mod structures;
 mod window;
+mod shader;
+mod safe_calls;
 
 extern crate gl;
+
+use std::fs::File;
+use std::io::Read;
+use gl::*;
 
 use glutin::{ContextWrapper, PossiblyCurrent};
 use winit::{
@@ -11,6 +17,9 @@ use winit::{
     window::WindowBuilder,
 };
 use winit::window::Window;
+use crate::safe_calls::{clear_screen, set_clear_color};
+use crate::shader::{ShaderProgramBuilder, VertexBuffer};
+use crate::structures::matrix::Mat;
 use crate::structures::object::Object;
 
 type Ctx = ContextWrapper<PossiblyCurrent, Window>;
@@ -39,6 +48,33 @@ fn main() {
         ) {
             let mut timer = std::time::Instant::now();
             let mut acc = std::time::Duration::new(0, 0);
+
+            let mut vbo = VertexBuffer::<f32, 3>::gen().unwrap();
+
+            let vertices = model.triangles();
+
+            vbo.load(vertices, false).enable(0, FLOAT, TRIANGLES);
+
+            let mut program = ShaderProgramBuilder::default();
+
+            if let Ok(mut file) = File::open("resources/shaders/triangle.vert") {
+                let mut t = String::new();
+                file.read_to_string(&mut t);
+                program.add_shader(VERTEX_SHADER, t.as_str());
+            }
+
+            if let Ok(mut file) = File::open("resources/shaders/triangle.frag") {
+                let mut t = String::new();
+                file.read_to_string(&mut t);
+                program.add_shader(FRAGMENT_SHADER, t.as_str());
+            }
+
+            let mut program = program.build().unwrap();
+
+            set_clear_color(0.2, 0.5, 0.2);
+            
+            let mut rot: f32 = 0.;
+
             event_loop.run(move |event, _target, control_flow| {
                 match event {
                     Event::WindowEvent {
@@ -50,12 +86,14 @@ fn main() {
                         let elapsed = timer.elapsed();
                         if elapsed.as_secs_f64() >= 1. / 60. {
                             acc += elapsed;
-                            // println!("tick: {acc:?}");
                             timer = std::time::Instant::now(); //extremely simplified fps limiter, each frame that takes more than 1/60s will slow the accumulator (currently results in an offset of almost 0.05s per minute, or about a full frame)
-                            unsafe {
-                                gl::ClearColor(0.2, 0.5, 0.2, 1.0);
-                                gl::Clear(gl::COLOR_BUFFER_BIT);
+                            clear_screen();
+                            rot += 1.;
+                            if rot >= 360. {
+                                rot = 0.;
                             }
+                            program.set_mat("test", Mat::<4, 4, f32>::rot_y(rot.to_radians()));
+                            vbo.draw();
                             ctx.swap_buffers().unwrap();
                         }
                     }
