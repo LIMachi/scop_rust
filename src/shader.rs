@@ -1,8 +1,9 @@
-use std::ffi::{c_void, CStr};
+use std::ffi::c_void;
 use std::mem::size_of;
 use gl::*;
 use gl::types::{GLchar, GLenum, GLint, GLsizei, GLsizeiptr, GLuint};
-use crate::structures::matrix::Mat;
+use crate::structures::matrix::Matrix;
+use crate::structures::vector::Vector;
 
 #[derive(Default)]
 pub struct ShaderProgram {
@@ -20,44 +21,15 @@ impl ShaderProgram {
         }
     }
 
-    pub fn set_vecf<const S: usize>(&self, name: &str, value: [f32; S]) {
+    pub fn set_vec(&self, name: &str, value: Vector) {
         unsafe {
-            match S {
-                1 => {
-                    gl::Uniform1f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value[0]);
-                }
-                2 => {
-                    gl::Uniform2f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value[0], value[1]);
-                }
-                3 => {
-                    gl::Uniform3f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value[0], value[1], value[2]);
-                }
-                4 => {
-                    gl::Uniform4f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value[0], value[1], value[2], value[3]);
-                }
-                e @ _ => {
-                    //should print an error
-                }
-            }
+            gl::Uniform4f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value.x(), value.y(), value.z(), value.w());
         }
     }
     
-    pub fn set_mat<const S: usize>(&self, name: &str, value: Mat<S, S, f32>) {
+    pub fn set_mat(&self, name: &str, value: Matrix) {
         unsafe {
-            match S {
-                2 => {
-                    gl::UniformMatrix2fv(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), 1, TRUE, value.array().as_mut_ptr() as *const f32);
-                }
-                3 => {
-                    gl::UniformMatrix3fv(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), 1, TRUE, value.array().as_mut_ptr() as *const f32);
-                }
-                4 => {
-                    gl::UniformMatrix4fv(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), 1, TRUE, value.array().as_mut_ptr() as *const f32);
-                }
-                e @ _ => {
-                    //should print an error
-                }
-            }
+            gl::UniformMatrix4fv(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), 1, TRUE, value.as_array().as_mut_ptr() as *const f32);
         }
     }
 }

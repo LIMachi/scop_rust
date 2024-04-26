@@ -9,6 +9,7 @@ extern crate gl;
 use std::fs::File;
 use std::io::Read;
 use gl::*;
+use gl::types::GLsizei;
 
 use glutin::{ContextWrapper, PossiblyCurrent};
 use winit::{
@@ -16,20 +17,17 @@ use winit::{
     event_loop::ControlFlow,
     window::WindowBuilder,
 };
+use winit::event::VirtualKeyCode;
 use winit::window::Window;
 use crate::safe_calls::{clear_screen, set_clear_color};
 use crate::shader::{ShaderProgramBuilder, VertexBuffer};
-use crate::structures::matrix::Mat;
+use crate::structures::camera::Camera;
+use crate::structures::matrix::Matrix;
 use crate::structures::object::Object;
+use crate::structures::quat::Quat;
+use crate::structures::vector::Vector;
 
 type Ctx = ContextWrapper<PossiblyCurrent, Window>;
-
-fn handle_event(_ctx: &Ctx, event: WindowEvent, control_flow: &mut ControlFlow) {
-    println!("Got window event {event:?}");
-    if event == WindowEvent::CloseRequested {
-        *control_flow = ControlFlow::Exit
-    }
-}
 
 fn main() {
     if std::env::args().len() != 2 {
@@ -37,18 +35,21 @@ fn main() {
         return;
     }
     let model = std::env::args().last().unwrap(); //we can unwrap since we know the size of args is 2
-    println!("loading model: '{model}'");
     if let Some(model) = Object::load_model(model) {
-        println!("debug model: {model:?}");
         if let Some((ctx, event_loop)) = window::spawn_single_window(
             WindowBuilder::new()
                 .with_title("Scop")
-                .with_always_on_top(true)
                 .with_visible(true)
         ) {
             let mut timer = std::time::Instant::now();
             let mut acc = std::time::Duration::new(0, 0);
 
+            let mut vao = 0;
+            unsafe {
+                GenVertexArrays(1, &mut vao);
+                BindVertexArray(vao);
+            }
+            
             let mut vbo = VertexBuffer::<f32, 3>::gen().unwrap();
 
             let vertices = model.triangles();
@@ -71,16 +72,64 @@ fn main() {
 
             let mut program = program.build().unwrap();
 
+            let size = ctx.window().inner_size();
+            let proj = Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 100.);
+            program.set_mat("proj", proj);
+            let mut camera = Camera::default();
+            program.set_mat("camera", camera.view());
+
             set_clear_color(0.2, 0.5, 0.2);
             
-            let mut rot: f32 = 0.;
+            let mut rot: f32 = 90.;
 
             event_loop.run(move |event, _target, control_flow| {
                 match event {
                     Event::WindowEvent {
                         window_id, event,
                     } if ctx.window().id() == window_id => {
-                        handle_event(&ctx, event, control_flow);
+                        if let WindowEvent::KeyboardInput { device_id, input, is_synthetic } = event {
+                            if let Some(key) = input.virtual_keycode {
+                                match key {
+                                    VirtualKeyCode::S => {
+                                        camera.pos -= Vector::Z * 0.1;
+                                    }
+                                    VirtualKeyCode::W => {
+                                        camera.pos += Vector::Z * 0.1;
+                                    }
+                                    VirtualKeyCode::A => {
+                                        camera.pos -= Vector::X * 0.1;
+                                    }
+                                    VirtualKeyCode::D => {
+                                        camera.pos += Vector::X * 0.1;
+                                    }
+                                    VirtualKeyCode::LShift => {
+                                        camera.pos -= Vector::Y * 0.1;
+                                    }
+                                    VirtualKeyCode::Space => {
+                                        camera.pos += Vector::Y * 0.1;
+                                    }
+                                    VirtualKeyCode::Q => {
+                                        camera.rot *= Quat::from_axis_angle(Vector::Z, -10f32.to_radians());
+                                    }
+                                    VirtualKeyCode::E => {
+                                        camera.rot *= Quat::from_axis_angle(Vector::Z, 10f32.to_radians());
+                                    }
+                                    _ => {}
+                                }
+                                program.set_mat("camera", camera.view());
+                                println!("camera: {camera:?}");
+                            }
+                        }
+                        if let WindowEvent::Resized(size) = event {
+                            unsafe {
+                                Viewport(0, 0, size.width as GLsizei, size.height as GLsizei);
+                                let proj = Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 100.);
+                                program.set_mat("proj", proj);
+                            }
+                        }
+                        if event == WindowEvent::CloseRequested {
+                            *control_flow = ControlFlow::Exit
+                        }
                     }
                     Event::MainEventsCleared => {
                         let elapsed = timer.elapsed();
@@ -92,7 +141,7 @@ fn main() {
                             if rot >= 360. {
                                 rot = 0.;
                             }
-                            program.set_mat("test", Mat::<4, 4, f32>::rot_y(rot.to_radians()));
+                            program.set_mat("object", Quat::from_axis_angle(Vector::Y, rot.to_radians()).into());
                             vbo.draw();
                             ctx.swap_buffers().unwrap();
                         }

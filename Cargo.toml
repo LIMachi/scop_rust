@@ -7,4 +7,3 @@ edition = "2021"
 gl = "0.14.0"#raw OpenGL bindings
 winit = "0.24.0"#generic windowing library (works fine without extra .dll/.lib, in contrast to GLFW)
 glutin = "0.26.0"#link between winit and gl
-

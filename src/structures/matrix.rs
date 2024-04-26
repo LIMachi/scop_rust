@@ -1,98 +1,118 @@
 use std::fmt::Debug;
-use std::ops::{Add, Mul, Sub};
+use std::ops::Mul;
 use crate::structures::vector::Vector;
 
-#[derive(Debug, Clone)]
-pub struct Mat<const C: usize, const R: usize, T> {
-    inner: [[T; R]; C]
+#[derive(Default, Debug, Copy, Clone)]
+pub struct Matrix {
+    inner: [f32; 16]
 }
 
-impl <const C: usize, const R: usize, T: Copy> Mat<C, R, T> {
-    pub fn new(array: [[T; R]; C]) -> Self {
+impl From<[f32; 16]> for Matrix {
+    fn from(value: [f32; 16]) -> Self {
         Self {
-            inner: array.clone()
+            inner: value
+        }
+    }
+}
+
+impl From<Matrix> for [f32; 16] {
+    fn from(value: Matrix) -> Self {
+        value.inner
+    }
+}
+
+impl Matrix {
+    pub fn from_pos(pos: &Vector) -> Self {
+        Self {
+            inner: [
+                1., 0., 0., pos.x(),
+                0., 1., 0., pos.y(),
+                0., 0., 1., pos.z(),
+                0., 0., 0., 1.,
+            ]
         }
     }
     
-    pub fn get(&self, col: usize, row: usize) -> T {
-        assert!(col < C, "Invalid column index {} for matrix of size {}", col, C);
-        assert!(row < R, "Invalid row index {} for matrix of size {}", row, R);
-        self.inner[col][row]
+    pub fn as_array(&self) -> [f32; 16] {
+        self.inner
     }
     
-    pub fn set(&mut self, col: usize, row: usize, value: T) -> &mut Self {
-        assert!(col < C, "Invalid column index {} for matrix of size {}", col, C);
-        assert!(row < R, "Invalid row index {} for matrix of size {}", row, R);
-        self.inner[col][row] = value;
+    pub fn identity() -> Self {
+        Self {
+            inner: [
+                1., 0., 0., 0.,
+                0., 1., 0., 0.,
+                0., 0., 1., 0.,
+                0., 0., 0., 1.,
+            ]
+        }
+    }
+    
+    pub fn set(&mut self, col: usize, row: usize, value: f32) -> &mut Self {
+        assert!(col < 4, "Invalid column access {col}, matrix is 4*4");
+        assert!(row < 4, "Invalid row access {row}, matrix is 4*4");
+        self.inner[col + row * 4] = value;
         self
     }
     
-    pub fn array(&self) -> [[T; R]; C] {
-        self.inner.clone()
-    }
-    
-    pub fn column(&self, col: usize) -> Vector<R, T> {
-        assert!(col < C, "Invalid column index {} for matrix of size {}", col, C);
-        Vector::new(self.inner[col])
+    pub fn get(&self, col: usize, row: usize) -> f32 {
+        assert!(col < 4, "Invalid column access {col}, matrix is 4*4");
+        assert!(row < 4, "Invalid row access {row}, matrix is 4*4");
+        self.inner[col + row * 4]
     }
 
-    pub fn row(&self, row: usize) -> Vector<C, T> {
-        assert!(row < R, "Invalid row index {} for matrix of size {}", row, R);
-        let mut t = [self.inner[0][0]; C];
-        for i in 1..C {
-            t[i] = self.inner[i][row];
+    pub fn projection(ratio: f32, fov: f32, near: f32, far: f32) -> Self {
+        let mut inner = [0.; 16];
+        let s = 1. / (fov / 2.).tan();
+        let l = near - far;
+        inner[0] = s;
+        inner[5] = s / ratio;
+        inner[10] = (far + near) / l;
+        inner[11] = 2. * near * far / l;
+        inner[14] = 1.;
+        inner[15] = 1.;
+        Self {
+            inner
         }
-        Vector::new(t)
     }
 }
 
-impl <const C: usize, const R: usize> Mat<C, R, f32> {
-    pub fn rot_x(rad: f32) -> Self {
-        let mut out = Self::default();
-        if C > 2 && R > 2 {
-            let cos = rad.cos();
-            let sin = rad.sin();
-            out.inner[1][1] = cos;
-            out.inner[2][1] = -sin;
-            out.inner[1][2] = sin;
-            out.inner[2][2] = cos;
-        }
-        out
-    }
+impl Mul for Matrix {
+    type Output = Matrix;
 
-    pub fn rot_y(rad: f32) -> Self {
+    fn mul(self, rhs: Self) -> Self::Output {
         let mut out = Self::default();
-        if C > 2 && R > 2 {
-            let cos = rad.cos();
-            let sin = rad.sin();
-            out.inner[0][0] = cos;
-            out.inner[2][0] = sin;
-            out.inner[0][2] = -sin;
-            out.inner[2][2] = cos;
-        }
-        out
-    }
-
-    pub fn rot_z(rad: f32) -> Self {
-        let mut out = Self::default();
-        if C > 1 && R > 1 {
-            let cos = rad.cos();
-            let sin = rad.sin();
-            out.inner[0][0] = cos;
-            out.inner[1][0] = -sin;
-            out.inner[0][1] = sin;
-            out.inner[1][1] = cos;
+        for i in 0..4 {
+            for j in 0..4 {
+                let mut acc = 0.;
+                for n in 0..4 {
+                    acc += self.get(j, n) * rhs.get(n, i);
+                }
+                out.set(j, i, acc);
+            }
         }
         out
     }
 }
 
-impl <const C: usize, const R: usize> Default for Mat<C, R, f32> {
-    fn default() -> Self {
-        let mut out = Self::new([[0.; R]; C]);
-        for i in 0..C.min(R) {
-            out.set(i, i, 1.);
+impl Mul<Vector> for Matrix {
+    type Output = Vector;
+
+    fn mul(self, rhs: Vector) -> Self::Output {
+        let mut t = [0.; 4];
+        for i in 0..4 {
+            for j in 0..4 {
+                t[i] += rhs.get(j) * self.get(i, j);
+            }
         }
-        out
+        Vector::from(t)
+    }
+}
+
+impl Mul<Matrix> for Vector {
+    type Output = Vector;
+
+    fn mul(self, rhs: Matrix) -> Self::Output {
+        rhs * self
     }
 }

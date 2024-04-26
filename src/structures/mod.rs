@@ -5,3 +5,5 @@ pub mod face;
 pub mod point;
 pub mod matrix;
 pub mod vector;
+pub mod quat;
+pub mod camera;
