@@ -1,6 +1,16 @@
 #version 330 core
-out vec4 final_color;
+out vec4 color;
+
+in vec3 pos;
+in vec2 uv;
+in vec3 normal;
+
+uniform sampler2D tex;
 
 void main() {
-	final_color = vec4(1.0, 0.5, 0.2, 1.0);
+//	if (tex != 0) {
+		color = vec4(texture(tex, uv).rgb, 1);
+//	} else {
+//		color = vec4(pos, 1);
+//	}
 }

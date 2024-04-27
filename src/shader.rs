@@ -3,6 +3,7 @@ use std::mem::size_of;
 use gl::*;
 use gl::types::{GLchar, GLenum, GLint, GLsizei, GLsizeiptr, GLuint};
 use crate::structures::matrix::Matrix;
+use crate::structures::texture::Texture;
 use crate::structures::vector::Vector;
 
 #[derive(Default)]
@@ -30,6 +31,12 @@ impl ShaderProgram {
     pub fn set_mat(&self, name: &str, value: Matrix) {
         unsafe {
             gl::UniformMatrix4fv(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), 1, TRUE, value.as_array().as_mut_ptr() as *const f32);
+        }
+    }
+    
+    pub fn set_tex(&self, name: &str, value: Texture) {
+        unsafe {
+            gl::Uniform1i(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value.index() as GLint);
         }
     }
 }
@@ -80,7 +87,6 @@ impl <T: Sized, const S: usize> VertexBuffer<T, S> {
     pub fn load(&mut self, content: Vec<[T; S]>, reload: bool) -> &mut Self {
         self.element_size = size_of::<[T; S]>();
         self.element_count = content.len();
-        println!("size: {}, count: {}", self.element_size, self.element_count);
         self.data = content;
         unsafe {
             BindBuffer(ARRAY_BUFFER, self.binding);
@@ -105,7 +111,6 @@ impl <T: Sized, const S: usize> VertexBuffer<T, S> {
     
     pub fn draw(&self) {
         unsafe {
-            EnableVertexAttribArray(self.index);
             DrawArrays(self.draw_kind, 0, self.element_count as GLsizei);
         }
     }

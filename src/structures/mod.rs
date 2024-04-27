@@ -7,3 +7,4 @@ pub mod matrix;
 pub mod vector;
 pub mod quat;
 pub mod camera;
+pub mod input_handler;

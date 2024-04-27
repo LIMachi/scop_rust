@@ -69,7 +69,7 @@ impl Matrix {
         inner[5] = s / ratio;
         inner[10] = (far + near) / l;
         inner[11] = 2. * near * far / l;
-        inner[14] = 1.;
+        inner[14] = -1.;
         inner[15] = 1.;
         Self {
             inner
