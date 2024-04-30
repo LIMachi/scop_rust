@@ -1,24 +1,10 @@
 use std::fmt::Debug;
 use std::ops::Mul;
-use crate::structures::vector::Vector;
+use super::vector::Vector;
 
 #[derive(Default, Debug, Copy, Clone)]
 pub struct Matrix {
     inner: [f32; 16]
-}
-
-impl From<[f32; 16]> for Matrix {
-    fn from(value: [f32; 16]) -> Self {
-        Self {
-            inner: value
-        }
-    }
-}
-
-impl From<Matrix> for [f32; 16] {
-    fn from(value: Matrix) -> Self {
-        value.inner
-    }
 }
 
 impl Matrix {

@@ -1,10 +1,10 @@
 use std::ffi::c_void;
 use std::mem::size_of;
-use gl::*;
-use gl::types::{GLchar, GLenum, GLint, GLsizei, GLsizeiptr, GLuint};
-use crate::structures::matrix::Matrix;
+use gl::{*, types::*};
+use crate::maths::matrix::Matrix;
+use crate::maths::vector::Vector;
+use crate::other::resource_manager::ResourceManager;
 use crate::structures::texture::Texture;
-use crate::structures::vector::Vector;
 
 #[derive(Default)]
 pub struct ShaderProgram {
@@ -12,10 +12,17 @@ pub struct ShaderProgram {
 }
 
 impl ShaderProgram {
+    pub fn from_resources(resources: &mut ResourceManager, name: &str) -> Option<Self> {
+        let mut builder = ShaderProgramBuilder::default();
+        builder.add_shader(VERTEX_SHADER, resources.load_text(format!("{name}.vert"))?.as_str());
+        builder.add_shader(FRAGMENT_SHADER, resources.load_text(format!("{name}.frag"))?.as_str());
+        builder.build()
+    }
+
     pub fn new(id: GLuint) -> Self {
         Self { id }
     }
-    
+
     pub fn set_float(&self, name: &str, value: f32) {
         unsafe {
             gl::Uniform1f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value);
@@ -27,13 +34,13 @@ impl ShaderProgram {
             gl::Uniform4f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value.x(), value.y(), value.z(), value.w());
         }
     }
-    
+
     pub fn set_mat(&self, name: &str, value: Matrix) {
         unsafe {
             gl::UniformMatrix4fv(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), 1, TRUE, value.as_array().as_mut_ptr() as *const f32);
         }
     }
-    
+
     pub fn set_tex(&self, name: &str, value: Texture) {
         unsafe {
             gl::Uniform1i(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value.index() as GLint);
@@ -108,7 +115,7 @@ impl <T: Sized, const S: usize> VertexBuffer<T, S> {
         }
         self
     }
-    
+
     pub fn draw(&self) {
         unsafe {
             DrawArrays(self.draw_kind, 0, self.element_count as GLsizei);
@@ -117,6 +124,7 @@ impl <T: Sized, const S: usize> VertexBuffer<T, S> {
 }
 
 impl ShaderProgramBuilder {
+
     pub fn add_shader(&mut self, kind: GLenum, source: &str) -> &mut Self {
         unsafe {
             let shader = gl::CreateShader(kind);

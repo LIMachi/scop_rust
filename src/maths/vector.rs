@@ -115,6 +115,12 @@ impl Vector {
         inner: [0., 0., 0., 1.]
     };
     
+    pub fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
+        Self {
+            inner: [x, y, z, w]
+        }
+    }
+    
     pub fn dot(&self, other: &Self) -> f32 {
         let mut acc = 0.;
         for i in 0..4 {
@@ -192,5 +198,9 @@ impl Vector {
         assert!(row < 4, "Invalid row access {row}, vector is 4");
         self.inner[row] = value;
         self
+    }
+    
+    pub fn array(&self) -> [f32; 4] {
+        self.inner
     }
 }

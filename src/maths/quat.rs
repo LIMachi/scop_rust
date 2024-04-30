@@ -1,6 +1,6 @@
 use std::ops::{Mul, MulAssign};
-use crate::structures::matrix::Matrix;
-use crate::structures::vector::Vector;
+use super::matrix::Matrix;
+use super::vector::Vector;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Quat {
@@ -130,21 +130,5 @@ impl From<Quat> for Matrix {
             out.set(2, 2, 1. - 2. * (value.i * value.i + value.j * value.j));
         }
         out
-    }
-}
-
-impl Mul<Matrix> for Quat {
-    type Output = Matrix;
-
-    fn mul(self, rhs: Matrix) -> Self::Output {
-        Matrix::from(self) * rhs
-    }
-}
-
-impl Mul<Vector> for Quat {
-    type Output = Vector;
-
-    fn mul(self, rhs: Vector) -> Self::Output {
-        Matrix::from(self) * rhs
     }
 }

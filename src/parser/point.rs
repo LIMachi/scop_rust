@@ -1,4 +1,4 @@
-use crate::structures::point::Point;
+use super::Point;
 
 impl Point {
     pub fn parse(columns: Vec<&str>) -> Option<Self> {

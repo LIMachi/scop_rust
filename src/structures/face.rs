@@ -1,4 +1,4 @@
-use crate::structures::point::Point;
+use crate::parser::Point;
 
 #[derive(Default, Debug)]
 pub struct Face {

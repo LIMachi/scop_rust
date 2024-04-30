@@ -11,15 +11,12 @@ use std::io::Read;
 use gl::*;
 use gl::types::GLsizei;
 
-use glutin::{ContextWrapper, PossiblyCurrent};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::ControlFlow,
     window::WindowBuilder,
 };
 use winit::event::VirtualKeyCode;
-use winit::window::Window;
-use crate::parser::ObjectParser;
 use crate::safe_calls::{clear_screen, set_clear_color, set_depth_test};
 use crate::shader::{ShaderProgramBuilder, VertexBuffer};
 use crate::structures::camera::Camera;

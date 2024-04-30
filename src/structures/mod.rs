@@ -1,12 +1,3 @@
 pub mod texture;
-pub mod material;
 pub mod object;
 pub mod face;
-pub mod point;
-pub mod matrix;
-pub mod vector;
-pub mod quat;
-pub mod camera;
-pub mod input_handler;
-pub mod resource_manager;
-pub mod spawned_object;
