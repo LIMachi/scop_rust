@@ -1,7 +1,8 @@
-use glutin::ContextBuilder;
+use glutin::{ContextBuilder, ContextWrapper, PossiblyCurrent};
 use winit::event_loop::EventLoop;
-use winit::window::WindowBuilder;
-use crate::Ctx;
+use winit::window::{Window, WindowBuilder};
+
+pub type Ctx = ContextWrapper<PossiblyCurrent, Window>;
 
 pub fn spawn_single_window(builder: WindowBuilder) -> Option<(Ctx, EventLoop<()>)> {
     let event_loop = EventLoop::new();

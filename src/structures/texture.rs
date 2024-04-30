@@ -12,6 +12,18 @@ pub struct Texture {
 }
 
 impl Texture {
+    pub const EMPTY: Self = Self {
+        name: 0,
+        index: 0,
+        width: 0,
+        height: 0,
+        pixel_data: vec![],
+    };
+    
+    pub fn is_empty(&self) -> bool {
+        self.width == 0 || self.height == 0
+    }
+    
     pub fn new(width: usize, height: usize) -> Self {
         let mut name = 0;
         unsafe {
@@ -59,7 +71,7 @@ impl Texture {
                 0,
                 RGB,
                 UNSIGNED_BYTE,
-                &self.pixel_data.as_slice()[0] as *const u8 as *const c_void,
+                self.pixel_data.as_ptr() as *const c_void,
             );
             GenerateMipmap(TEXTURE_2D);
             self.index = index;

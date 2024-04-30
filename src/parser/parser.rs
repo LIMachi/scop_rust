@@ -1,9 +1,8 @@
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use crate::parser::ObjectParser;
 use crate::structures::face::Face;
 use crate::structures::material::Material;
 use crate::structures::point::Point;
+use crate::structures::resource_manager::ResourceManager;
 
 impl ObjectParser {
     pub fn parse_face(&self, columns: Vec<&str>) -> Option<Face> {
@@ -46,23 +45,24 @@ impl ObjectParser {
         }
         Some(out)
     }
-    
-    pub fn load_model(file: File) -> Option<Self> {
-        let lines = BufReader::new(file).lines().filter_map(|rs| rs.ok());
+
+    pub fn load_model(resources: &mut ResourceManager, path: String) -> Option<Self> {
         let mut out = Self::default();
-        for line in lines {
+        let lines = resources.lines(&path);
+        for line in lines.iter() {
             let columns = line.split_whitespace().collect::<Vec<&str>>();
             if columns.len() == 0 {
                 continue;
             }
             match columns[0] {
                 "mtllib" => {
-                    for file in columns[1..].iter().filter_map(|f| File::open(*f).ok()) {
-                        out.building.load_textures(Material::extract_texture_paths(file));
+                    for file in columns[1..].iter().map(|f| resources.lines(f)).collect::<Vec<Vec<String>>>() {
+                        // out.building.load_textures(resources, Material::extract_texture_paths(&file)); //FIXME: should load entire lib instead
+                        out.building.materials.extend(Material::parse(&file));
                     }
                 }
                 "usemtl" => {
-                    //check if materiel exists, set it so it affect the faces
+                    //
                 }
                 "v" => {
                     if let Some(point) = Point::parse(columns) {

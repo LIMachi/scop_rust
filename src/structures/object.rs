@@ -7,7 +7,7 @@ use crate::structures::texture::Texture;
 #[derive(Default, Debug)]
 pub struct Object {
     pub name: String,
-    pub materials: Vec<Material>,
+    pub materials: HashMap<String, Material>,
     pub textures: HashMap<String, Texture>,
     pub groups: HashMap<String, Vec<usize>>,
     pub smoothing: Vec<Vec<usize>>,

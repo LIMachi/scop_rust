@@ -3,6 +3,14 @@ name = "scop_rust"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "scop"
+path = "src/main.rs"
+
+[[bin]]
+name = "v2"
+path = "src/v2.rs"
+
 [dependencies]
 gl = "0.14.0"
 winit = "0.24.0"

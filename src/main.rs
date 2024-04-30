@@ -19,13 +19,14 @@ use winit::{
 };
 use winit::event::VirtualKeyCode;
 use winit::window::Window;
+use crate::parser::ObjectParser;
 use crate::safe_calls::{clear_screen, set_clear_color, set_depth_test};
 use crate::shader::{ShaderProgramBuilder, VertexBuffer};
 use crate::structures::camera::Camera;
 use crate::structures::input_handler::InputHandler;
 use crate::structures::matrix::Matrix;
-use crate::structures::object::Object;
 use crate::structures::quat::Quat;
+use crate::structures::resource_manager::ResourceManager;
 use crate::structures::texture::Texture;
 use crate::structures::vector::Vector;
 
@@ -46,20 +47,22 @@ pub enum Inputs {
     ToggleRotation
 }
 
-type Ctx = ContextWrapper<PossiblyCurrent, Window>;
-
 fn main() {
     if std::env::args().len() != 2 {
         println!("expected exactly 1 argument");
         return;
     }
     let model = std::env::args().last().unwrap(); //we can unwrap since we know the size of args is 2
-    if let Some(model) = Object::load_model(model) {
-        if let Some((ctx, event_loop)) = window::spawn_single_window(
-            WindowBuilder::new()
-                .with_title("Scop")
-                .with_visible(true)
-        ) {
+    let mut resource_manager = ResourceManager::new();
+    resource_manager.register_path("resources");
+    resource_manager.register_path("resources/obj");
+    resource_manager.register_path("resources/textures");
+    if let Some((ctx, event_loop)) = window::spawn_single_window(
+        WindowBuilder::new()
+            .with_title("Scop")
+            .with_visible(true)
+    ) {
+        if let Some(model) = ObjectParser::load_model(&mut resource_manager, model).map(|p| p.building) {
             let mut timer = std::time::Instant::now();
             let mut acc = std::time::Duration::new(0, 0);
 
@@ -107,7 +110,7 @@ fn main() {
             let mut camera = Camera::default();
             program.set_mat("camera", camera.view());
 
-            let mut tex = Texture::parse_file("resources/objs/dragon.bmp".to_string()).unwrap();
+            let mut tex = Texture::parse(&resource_manager.raw_file("dragon.bmp"));
             tex.bake(0);
             program.set_tex("tex", tex);
 

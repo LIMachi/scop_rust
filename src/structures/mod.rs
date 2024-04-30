@@ -8,3 +8,5 @@ pub mod vector;
 pub mod quat;
 pub mod camera;
 pub mod input_handler;
+pub mod resource_manager;
+pub mod spawned_object;
