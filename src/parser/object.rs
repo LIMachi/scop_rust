@@ -109,6 +109,9 @@ impl ParsedObject {
                 }
             }
         }
+        if out.groups.len() == 0 && out.faces.len() > 0 { //fix missing / undeclared groups
+            out.groups.push([0, 0, out.faces.len() - 1]);
+        }
         Some(out)
     }
 }

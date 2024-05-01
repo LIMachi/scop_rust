@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::ops::Mul;
+use crate::maths::quat::Quat;
 use super::vector::Vector;
 
 #[derive(Default, Debug, Copy, Clone)]
@@ -8,6 +9,21 @@ pub struct Matrix {
 }
 
 impl Matrix {
+    pub fn from_pos_rot_scale(pos: &Vector, rot: &Quat, scale: &Vector) -> Self {
+        Self::from_pos(pos) * Self::from(*rot) * Self::from_scale(scale)
+    }
+    
+    pub fn from_scale(scale: &Vector) -> Self {
+        Self {
+            inner: [
+                scale.x(), 0., 0., 0.,
+                0., scale.y(), 0., 0.,
+                0., 0., scale.z(), 0.,
+                0., 0., 0., 1.,
+            ]
+        }
+    }
+    
     pub fn from_pos(pos: &Vector) -> Self {
         Self {
             inner: [

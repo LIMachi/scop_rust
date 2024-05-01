@@ -38,9 +38,9 @@ impl ShaderProgram {
         }
     }
 
-    pub fn set_u32(&self, name: &str, value: u32) {
+    pub fn set_int(&self, name: &str, value: i32) {
         unsafe {
-            gl::Uniform1i(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value as GLint);
+            gl::Uniform1i(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value);
         }
     }
 }

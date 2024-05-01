@@ -38,13 +38,13 @@ fn main() {
             safe_calls::set_depth_test(true);
 
             object.bake();
+            // object.render_flags = 1;
 
             let size = ctx.window().inner_size();
             let proj = Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 10000.);
             program.set_mat("proj", proj);
             let mut camera = Camera::default();
             program.set_mat("camera", camera.view());
-            program.set_mat("object", Matrix::identity());
 
             let mut timer = std::time::Instant::now();
 

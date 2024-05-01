@@ -10,8 +10,8 @@ pub struct Quat {
     pub k: f32,
 }
 
-impl Default for Quat {
-    fn default() -> Self {
+impl Quat {
+    pub fn identity() -> Self {
         Self {
             r: 1.,
             i: 0.,
@@ -19,13 +19,11 @@ impl Default for Quat {
             k: 0.,
         }
     }
-}
-
-impl Quat {
+    
     pub fn from_axis_angle(axis: Vector, angle: f32) -> Self {
         let sqr = axis.len_sqr();
         if sqr == 0. {
-            Self::default()
+            Self::identity()
         } else {
             let angle = angle / 2.;
             let r = angle.cos();

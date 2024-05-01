@@ -43,7 +43,7 @@ impl Inputs {
     
     pub fn apply_to_camera(camera: &mut Camera, handler: &InputHandler<Self>) -> bool {
         let mut displacement = Vector::default();
-        let mut rotation = Quat::default();
+        let mut rotation = Quat::identity();
         let mat = Matrix::from(camera.rot);
         let up = mat * Vector::Y;
         let right = mat * Vector::X;
@@ -65,7 +65,7 @@ impl Inputs {
                 _ => {}
             }
         }
-        if displacement != Vector::default() || rotation != Quat::default() {
+        if displacement != Vector::default() || rotation != Quat::identity() {
             camera.rot *= rotation;
             camera.pos += displacement;
             true

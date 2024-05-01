@@ -1,5 +1,8 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use crate::maths::matrix::Matrix;
+use crate::maths::quat::Quat;
+use crate::maths::vector::Vector;
 use crate::opengl::material::Material;
 use crate::opengl::part::ObjectPart;
 use crate::opengl::shader::ShaderProgram;
@@ -7,13 +10,35 @@ use crate::opengl::texture::Texture;
 use crate::other::resource_manager::ResourceManager;
 use crate::parser::ParsedObject;
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Object {
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
     pub parts: Vec<ObjectPart>,
     pub current_part: usize,
     pub current_material: usize,
+    pub render_flags: i32,
+    pub scale: Vector,
+    pub position: Vector,
+    pub rotation: Quat,
+    pub need_uniform_update: bool,
+}
+
+impl Default for Object {
+    fn default() -> Self {
+        Self {
+            textures: vec![],
+            materials: vec![],
+            parts: vec![],
+            current_part: 0,
+            current_material: 0,
+            render_flags: 0,
+            scale: Vector::new(1., 1., 1., 1.),
+            position: Default::default(),
+            rotation: Quat::identity(),
+            need_uniform_update: false,
+        }
+    }
 }
 
 impl Object {
@@ -26,9 +51,15 @@ impl Object {
         }
         self.current_material = self.materials.len(); //force the binding of the material on first draw
         self.current_part = self.parts.len(); //force the binding of the vbos on first draw
+        self.need_uniform_update = true;
     }
     
     pub fn draw(&mut self, program: &ShaderProgram) {
+        if self.need_uniform_update {
+            program.set_mat("object", Matrix::from_pos_rot_scale(&self.position, &self.rotation, &self.scale));
+            program.set_int("flags", self.render_flags);
+            self.need_uniform_update = false;
+        }
         for (i, p) in self.parts.iter().enumerate() {
             if self.current_material != p.material {
                 self.materials[p.material].bind(&self.textures, program);
@@ -46,7 +77,7 @@ impl Object {
         let mut out = Self::default();
         let mut texture_map: HashMap<String, usize> = HashMap::new();
         texture_map.insert("".to_string(), 0);
-        out.textures.push(Texture::default());
+        out.textures.push(Texture::palette());
         for group in parsed.groups.iter() {
             let mut part = ObjectPart::default();
             part.material = group[0];
@@ -57,15 +88,16 @@ impl Object {
                         let r = if i == 0 { 0 } else { i + step };
                         let ti = face[r][0];
                         if ti > 0 && ti - 1 < parsed.vertexes.len() {
-                            part.vertices.push(parsed.vertexes[face[r][0] - 1].pos);
+                            part.vertices.push(parsed.vertexes[ti - 1].pos);
+                            part.colors.push(parsed.vertexes[ti - 1].color);
                         }
                         let ti = face[r][1];
                         if ti > 0 && ti - 1 < parsed.uvs.len() {
-                            part.uvs.push(parsed.uvs[face[r][1] - 1]);
+                            part.uvs.push(parsed.uvs[ti - 1]);
                         }
                         let ti = face[r][2];
                         if ti > 0 && ti - 1 < parsed.normals.len() {
-                            part.normals.push(parsed.normals[face[r][2] - 1]);
+                            part.normals.push(parsed.normals[ti - 1]);
                         }
                     }
                 }

@@ -12,6 +12,26 @@ pub struct Texture {
 }
 
 impl Texture {
+    pub fn palette() -> Self {
+        let mut data = vec![0; 256 * 256 * 3];
+        for x in 0..256 {
+            for y in 0..256 {
+                let r = ((256 - x) as u8).saturating_sub(y as u8);
+                let g = (x as u8).saturating_sub(y as u8);
+                let b = (y as u8).saturating_sub(x as u8);
+                data[x * 3 + y * 256 * 3] = r;
+                data[x * 3 + y * 256 * 3 + 1] = g;
+                data[x * 3 + y * 256 * 3 + 2] = b;
+            }
+        }
+        Self {
+            name: 0,
+            width: 256,
+            height: 256,
+            data
+        }
+    }
+    
     pub fn bake(&mut self) {
         unsafe {
             if self.name == 0 {
@@ -53,7 +73,7 @@ impl Texture {
                 //take the texture and bind it to the texture indexed by the given offset
                 ActiveTexture(TEXTURE0 + tex_offset as GLenum);
                 //bind the texture sampler to the uniform location 'tex<offset>'
-                shader.set_u32(format!("tex{tex_offset}").as_str(), tex_offset as u32);
+                shader.set_int(format!("tex{tex_offset}").as_str(), tex_offset as i32);
                 // Uniform1i(tex_offset as GLint, tex_offset as GLint);
             }
         }

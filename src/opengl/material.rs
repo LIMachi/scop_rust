@@ -12,10 +12,10 @@ pub struct Material {
     pub specular: [f32; 3],
     pub emissive: [f32; 3],
     pub illum: i32,
-    pub specular_exponent_map: usize,
-    pub transparency_map: usize,
     pub ambient_map: usize,
     pub diffuse_map: usize,
+    pub transparency_map: usize,
+    pub specular_exponent_map: usize,
     pub specular_map: usize,
     pub emissive_map: usize,
     pub bump_map: usize,
@@ -26,10 +26,10 @@ pub struct Material {
 impl Material {
     pub fn maps(&self) -> [usize; 9] {
         [
-            self.specular_exponent_map,
-            self.transparency_map,
             self.ambient_map,
             self.diffuse_map,
+            self.transparency_map,
+            self.specular_exponent_map,
             self.specular_map,
             self.emissive_map,
             self.bump_map,

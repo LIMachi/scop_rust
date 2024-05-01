@@ -1,12 +1,20 @@
 use crate::maths::matrix::Matrix;
 use crate::maths::quat::Quat;
 use crate::maths::vector::Vector;
-use crate::other::input_handler::InputHandler;
 
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Camera {
     pub pos: Vector,
     pub rot: Quat,
+}
+
+impl Default for Camera {
+    fn default() -> Self {
+        Self {
+            pos: Vector::default(),
+            rot: Quat::identity()
+        }
+    }
 }
 
 impl Camera {
