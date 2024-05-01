@@ -1,8 +1,8 @@
 use winit::event::VirtualKeyCode;
 use crate::maths::matrix::Matrix;
 use crate::maths::quat::Quat;
+use crate::maths::transform::Transform;
 use crate::maths::vector::Vector;
-use crate::opengl::camera::Camera;
 use crate::other::input_handler::InputHandler;
 
 #[derive(Eq, PartialEq, Hash, Debug, Copy, Clone)]
@@ -19,7 +19,8 @@ pub enum Inputs {
     LeftPitch,
     UpYaw,
     DownYaw,
-    ToggleRotation
+    ToggleRotation,
+    ToggleSpeedUp
 }
 
 impl Inputs {
@@ -38,30 +39,33 @@ impl Inputs {
         out.map(Self::UpYaw, VirtualKeyCode::Up);
         out.map(Self::DownYaw, VirtualKeyCode::Down);
         out.map(Self::ToggleRotation, VirtualKeyCode::R);
+        out.map(Self::ToggleSpeedUp, VirtualKeyCode::LControl);
         out
     }
     
-    pub fn apply_to_camera(camera: &mut Camera, handler: &InputHandler<Self>) -> bool {
+    pub fn apply_to_camera(camera: &mut Transform, handler: &InputHandler<Self>, speed_up: bool) -> bool {
         let mut displacement = Vector::default();
         let mut rotation = Quat::identity();
         let mat = Matrix::from(camera.rot);
         let up = mat * Vector::Y;
         let right = mat * Vector::X;
         let forward = mat * -Vector::Z;
+        let speed = if speed_up { 2f32 } else { 0.25f32 };
+        let angular = if speed_up { 5f32 } else { 2f32 };
         for input in handler.pressed() {
             match input {
-                Inputs::Forward => displacement += forward,
-                Inputs::Backward => displacement -= forward,
-                Inputs::Right => displacement += right,
-                Inputs::Left => displacement -= right,
-                Inputs::Up => displacement += up,
-                Inputs::Down => displacement -= up,
-                Inputs::RightRoll => rotation *= Quat::from_axis_angle(forward, -1f32.to_radians()),
-                Inputs::LeftRoll => rotation *= Quat::from_axis_angle(forward, 1f32.to_radians()),
-                Inputs::RightPitch => rotation *= Quat::from_axis_angle(up, 1f32.to_radians()),
-                Inputs::LeftPitch => rotation *= Quat::from_axis_angle(up, -1f32.to_radians()),
-                Inputs::UpYaw => rotation *= Quat::from_axis_angle(right, -1f32.to_radians()),
-                Inputs::DownYaw => rotation *= Quat::from_axis_angle(right, 1f32.to_radians()),
+                Inputs::Forward => displacement += forward * speed,
+                Inputs::Backward => displacement -= forward * speed,
+                Inputs::Right => displacement += right * speed,
+                Inputs::Left => displacement -= right * speed,
+                Inputs::Up => displacement += up * speed,
+                Inputs::Down => displacement -= up * speed,
+                Inputs::RightRoll => rotation *= Quat::from_axis_angle(forward, -angular.to_radians()),
+                Inputs::LeftRoll => rotation *= Quat::from_axis_angle(forward, angular.to_radians()),
+                Inputs::RightPitch => rotation *= Quat::from_axis_angle(up, angular.to_radians()),
+                Inputs::LeftPitch => rotation *= Quat::from_axis_angle(up, -angular.to_radians()),
+                Inputs::UpYaw => rotation *= Quat::from_axis_angle(right, -angular.to_radians()),
+                Inputs::DownYaw => rotation *= Quat::from_axis_angle(right, angular.to_radians()),
                 _ => {}
             }
         }

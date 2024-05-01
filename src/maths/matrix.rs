@@ -10,7 +10,7 @@ pub struct Matrix {
 
 impl Matrix {
     pub fn from_pos_rot_scale(pos: &Vector, rot: &Quat, scale: &Vector) -> Self {
-        Self::from_pos(pos) * Self::from(*rot) * Self::from_scale(scale)
+        Self::from_scale(scale) * Self::from(*rot) * Self::from_pos(pos)
     }
     
     pub fn from_scale(scale: &Vector) -> Self {
@@ -32,6 +32,18 @@ impl Matrix {
                 0., 0., 1., pos.z(),
                 0., 0., 0., 1.,
             ]
+        }
+    }
+    
+    pub fn transpose(&self) -> Self {
+        let mut inner = [0.; 16];
+        for i in 0..4 {
+            for j in 0..4 {
+                inner[i + j * 4] = self.inner[j + i * 4];
+            }
+        }
+        Self {
+            inner
         }
     }
     

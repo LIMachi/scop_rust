@@ -3,7 +3,8 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::ControlFlow;
 use winit::window::WindowBuilder;
 use crate::maths::matrix::Matrix;
-use crate::opengl::camera::Camera;
+use crate::maths::transform::Transform;
+use crate::maths::vector::Vector;
 use crate::opengl::object::Object;
 use crate::opengl::safe_calls;
 use crate::opengl::shader::ShaderProgram;
@@ -17,36 +18,54 @@ mod maths;
 mod other;
 
 fn main() {
-    if env::args().len() != 2 {
-        println!("expected exactly 1 argument");
+    if env::args().len() < 2 {
+        println!("expected at least 1 argument");
         return;
     }
-    let model = env::args().last().unwrap();
     let mut resources = ResourceManager::default();
     resources.register_hints(&["resources", "resources/objs", "resources/materials", "resources/textures", "resources/shaders"]);
-    if let Some(object) = resources.load_object(model).cloned() {
+    
+    let parsed: Vec<String> = env::args().enumerate().filter_map(|(i, a)| {
+        if i == 0 {
+            return None;
+        }
+        resources.load_object(&a)?.normalize();
+        Some(a)
+    }).collect();
+    
+    if parsed.len() > 0 {
         if let Some((ctx, event_loop)) = window::spawn_single_window(WindowBuilder::new()
             .with_title("Scop")
             .with_visible(true)
         ) {
             let mut program = ShaderProgram::from_resources(&mut resources, "triangle").unwrap();
-            let mut object = Object::new(&mut resources, &object);
+            let mut objects: Vec<Object> = parsed.iter().enumerate().map(|(i, s)| {
+                let t = resources.load_object(s).unwrap().clone();
+                let mut out = Object::new(&mut resources, &t);
+                out.transform = Transform::from_pos(Vector::Z * -100. * i as f32);
+                out
+            } ).collect();
 
             let mut inputs = Inputs::default_handler();
 
             safe_calls::set_clear_color(0., 0.5, 0.2);
             safe_calls::set_depth_test(true);
 
-            object.bake();
+            for object in objects.iter_mut() {
+                object.bake();
+            }
             // object.render_flags = 1;
 
             let size = ctx.window().inner_size();
             let proj = Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 10000.);
             program.set_mat("proj", proj);
-            let mut camera = Camera::default();
-            program.set_mat("camera", camera.view());
+            let mut camera = Transform::from_look_at(Vector::X * 50., Vector::default())/*Transform::from_pos(Vector::X * 50.)*/;
+            program.set_mat("camera", camera.as_view_matrix());
 
             let mut timer = std::time::Instant::now();
+            
+            let mut rotate = false;
+            let mut speed_up = false;
 
             event_loop.run(move |event, _target, control_flow| {
                 match event {
@@ -56,6 +75,8 @@ fn main() {
                         if let WindowEvent::KeyboardInput { input, .. } = event {
                             inputs.key_event(input);
                         }
+                        if let WindowEvent::CursorMoved { position, .. } = event {
+                        }
                         if let WindowEvent::Resized(size) = event {
                             safe_calls::resize(size.width, size.height);
                             let proj = Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 10000.);
@@ -64,16 +85,31 @@ fn main() {
                         if event == WindowEvent::CloseRequested {
                             *control_flow = ControlFlow::Exit
                         }
+                        if let WindowEvent::Focused(focused) = event {
+                            ctx.window().set_cursor_visible(!focused);
+                        }
                     }
                     Event::MainEventsCleared => {
                         let elapsed = timer.elapsed();
                         if elapsed.as_secs_f64() >= 1. / 60. {
                             timer = std::time::Instant::now();
-                            if Inputs::apply_to_camera(&mut camera, &inputs) {
-                                program.set_mat("camera", camera.view());
+                            if Inputs::apply_to_camera(&mut camera, &inputs, speed_up) {
+                                program.set_mat("camera", camera.as_view_matrix());
+                            }
+                            if inputs.status(Inputs::ToggleRotation).just_pressed() {
+                                rotate = !rotate;
+                            }
+                            if inputs.status(Inputs::ToggleSpeedUp).just_pressed() {
+                                speed_up = !speed_up;
                             }
                             safe_calls::clear_screen();
-                            object.draw(&program);
+                            for object in objects.iter_mut() {
+                                if rotate {
+                                    object.transform.rotate_local(Vector::Y, 1f32.to_radians());
+                                }
+                                object.bind();
+                                object.draw(&program);
+                            }
                             ctx.swap_buffers().unwrap();
                             inputs.tick();
                         }

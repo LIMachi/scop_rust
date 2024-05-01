@@ -41,6 +41,41 @@ impl Quat {
         }
     }
 
+    pub fn from_look_at(look: Vector, up: Vector) -> Self {
+        let right = up.cross(&look).normalize();
+        let up = look.cross(&right);
+        let t1 = 1. + right.x() - up.y() - look.z();
+        let t2 = 1. - right.x() + up.y() - look.z();
+        let t3 = 1. - right.x() - up.y() + look.z();
+        if t1 + t2 + t3 < 0. {
+            Self::identity()
+        } else if t1 > t2 && t1 > t3 {
+            let s = t1.sqrt() * 2.;
+            Self {
+                r: (up.z() - look.y()) / s,
+                i: s / 4.,
+                j: (up.x() + right.y()) / s,
+                k: (look.x() + right.z()) / s,
+            }
+        } else if t2 > t1 && t2 > t3 {
+            let s = t2.sqrt() * 2.;
+            Self {
+                r: (look.x() - right.z()) / s,
+                i: (up.x() + right.y()) / s,
+                j: s / 4.,
+                k: (look.y() + up.z()) / s,
+            }
+        } else {
+            let s = t3.sqrt() * 2.;
+            Self {
+                r: (right.y() - up.x()) / s,
+                i: (look.x() + right.z()) / s,
+                j: (look.y() + up.z()) / s,
+                k: s / 4.,
+            }
+        }
+    }
+
     pub fn conjugate(&mut self) -> &mut Self {
         self.i = -self.i;
         self.j = -self.j;

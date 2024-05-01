@@ -1,9 +1,29 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use crate::maths::vector::Vector;
 use super::{ParsedObject, Point};
 use crate::other::resource_manager::ResourceManager;
 
 impl ParsedObject {
+    //center the object to 0, 0, 0, scale the object so it's edges are [-1, -1, -1] [1, 1, 1]
+    //add automatic uvs and normals if missing
+    pub fn normalize(&mut self) {
+        if self.normalized {
+            return;
+        }
+        let (min, max) = self.vertexes.iter().fold((Vector::splat(f32::MAX), Vector::splat(f32::MIN)), |acc, v| {
+            let v = Vector::from(v.pos);
+            (acc.0.min(&v), acc.1.max(&v))
+        });
+        let size = max - min;
+        let center = size * 0.5 + min;
+        let max_size = size.x().max(size.y()).max(size.z());
+        for p in &mut self.vertexes {
+            p.pos = (Vector::from(p.pos) - center).scale(100. / max_size).into();
+        }
+        self.normalized = true;
+    }
+    
     pub fn parse(resources: &mut ResourceManager, file: File) -> Option<Self> {
         let mut out = Self::default();
         for line in BufReader::new(file).lines().filter_map(|l| l.ok()) {

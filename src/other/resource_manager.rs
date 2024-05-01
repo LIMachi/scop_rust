@@ -70,7 +70,7 @@ impl ResourceManager {
         self.map.get(&name).cloned()
     }
 
-    pub fn load_object<S: Into<String>>(&mut self, key: S) -> Option<&ParsedObject> {
+    pub fn load_object<S: Into<String>>(&mut self, key: S) -> Option<&mut ParsedObject> {
         if let Some(p) = self.resolve_full_path(key, &["obj"]) {
             if !self.objects.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
@@ -79,13 +79,13 @@ impl ResourceManager {
                     }
                 }
             }
-            self.objects.get(&p)
+            self.objects.get_mut(&p)
         } else {
             None
         }
     }
 
-    pub fn load_material_lib<S: Into<String>>(&mut self, key: S) -> Option<&ParsedMaterialLib> {
+    pub fn load_material_lib<S: Into<String>>(&mut self, key: S) -> Option<&mut ParsedMaterialLib> {
         if let Some(p) = self.resolve_full_path(key, &["mtl"]) {
             if !self.materials.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
@@ -94,13 +94,13 @@ impl ResourceManager {
                     }
                 }
             }
-            self.materials.get(&p)
+            self.materials.get_mut(&p)
         } else {
             None
         }
     }
 
-    pub fn load_texture<S: Into<String>>(&mut self, key: S) -> Option<&ParsedTexture> {
+    pub fn load_texture<S: Into<String>>(&mut self, key: S) -> Option<&mut ParsedTexture> {
         if let Some(p) = self.resolve_full_path(key, &["bmp"]) {
             if !self.textures.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
@@ -109,13 +109,13 @@ impl ResourceManager {
                     }
                 }
             }
-            self.textures.get(&p)
+            self.textures.get_mut(&p)
         } else {
             None
         }
     }
 
-    pub fn load_text<S: Into<String>>(&mut self, key: S) -> Option<&String> {
+    pub fn load_text<S: Into<String>>(&mut self, key: S) -> Option<&mut String> {
         if let Some(p) = self.resolve_full_path(key, &["txt", "frag", "vert"]) {
             if !self.text.contains_key(&p) {
                 if let Ok(mut file) = File::open(&p) {
@@ -124,7 +124,7 @@ impl ResourceManager {
                     self.text.insert(p.clone(), text);
                 }
             }
-            self.text.get(&p)
+            self.text.get_mut(&p)
         } else {
             None
         }

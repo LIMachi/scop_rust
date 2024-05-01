@@ -1,8 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use crate::maths::matrix::Matrix;
-use crate::maths::quat::Quat;
-use crate::maths::vector::Vector;
+use gl::types::GLuint;
+use crate::maths::transform::Transform;
 use crate::opengl::material::Material;
 use crate::opengl::part::ObjectPart;
 use crate::opengl::shader::ShaderProgram;
@@ -12,64 +11,69 @@ use crate::parser::ParsedObject;
 
 #[derive(Debug)]
 pub struct Object {
+    pub vao: GLuint,
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
     pub parts: Vec<ObjectPart>,
     pub current_part: usize,
-    pub current_material: usize,
     pub render_flags: i32,
-    pub scale: Vector,
-    pub position: Vector,
-    pub rotation: Quat,
-    pub need_uniform_update: bool,
+    pub transform: Transform,
 }
 
 impl Default for Object {
     fn default() -> Self {
         Self {
+            vao: 0,
             textures: vec![],
             materials: vec![],
             parts: vec![],
             current_part: 0,
-            current_material: 0,
             render_flags: 0,
-            scale: Vector::new(1., 1., 1., 1.),
-            position: Default::default(),
-            rotation: Quat::identity(),
-            need_uniform_update: false,
+            transform: Transform::default(),
         }
     }
 }
 
 impl Object {
     pub fn bake(&mut self) {
+        if self.vao == 0 {
+            unsafe {
+                gl::GenVertexArrays(1, &mut self.vao);
+                gl::BindVertexArray(self.vao);
+            }
+            if self.vao == 0 {
+                return;
+            }
+        }
         for m in &self.materials {
             m.bake(&mut self.textures);
         }
         for p in &mut self.parts {
             p.bake();
         }
-        self.current_material = self.materials.len(); //force the binding of the material on first draw
         self.current_part = self.parts.len(); //force the binding of the vbos on first draw
-        self.need_uniform_update = true;
+    }
+    
+    pub fn bind(&self) {
+        if self.vao != 0 {
+            unsafe {
+                gl::BindVertexArray(self.vao);
+            }
+        }
     }
     
     pub fn draw(&mut self, program: &ShaderProgram) {
-        if self.need_uniform_update {
-            program.set_mat("object", Matrix::from_pos_rot_scale(&self.position, &self.rotation, &self.scale));
+        if self.vao != 0 {
+            program.set_mat("object", self.transform.into());
             program.set_int("flags", self.render_flags);
-            self.need_uniform_update = false;
-        }
-        for (i, p) in self.parts.iter().enumerate() {
-            if self.current_material != p.material {
+            for (i, p) in self.parts.iter().enumerate() {
                 self.materials[p.material].bind(&self.textures, program);
-                self.current_material = p.material;
+                if self.current_part != i {
+                    self.current_part = i;
+                    p.bind();
+                }
+                p.draw();
             }
-            if self.current_part != i {
-                self.current_part = i;
-                p.bind();
-            }
-            p.draw();
         }
     }
     

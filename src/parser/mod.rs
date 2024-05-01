@@ -31,7 +31,8 @@ pub struct ParsedObject {
     pub materials: Vec<String>, //usemtl / mapping from index to name
     pub material_index: HashMap<String, usize>, //usemtl / mapping from name to index
     pub groups: Vec<[usize; 3]>, //usemtl / mapping material -> range inclusive of faces
-    pub faces: Vec<Vec<[usize; 3]>> //f
+    pub faces: Vec<Vec<[usize; 3]>>, //f
+    pub normalized: bool, //is this object already normalized
 }
 
 #[derive(Debug, Clone)]
