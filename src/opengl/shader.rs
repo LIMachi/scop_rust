@@ -1,10 +1,7 @@
-use std::ffi::c_void;
-use std::mem::size_of;
 use gl::{*, types::*};
 use crate::maths::matrix::Matrix;
 use crate::maths::vector::Vector;
 use crate::other::resource_manager::ResourceManager;
-use crate::structures::texture::Texture;
 
 #[derive(Default)]
 pub struct ShaderProgram {
@@ -41,9 +38,9 @@ impl ShaderProgram {
         }
     }
 
-    pub fn set_tex(&self, name: &str, value: Texture) {
+    pub fn set_u32(&self, name: &str, value: u32) {
         unsafe {
-            gl::Uniform1i(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value.index() as GLint);
+            gl::Uniform1i(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value as GLint);
         }
     }
 }
@@ -52,75 +49,6 @@ impl ShaderProgram {
 pub struct ShaderProgramBuilder {
     shaders: Vec<GLuint>,
     error: GLint
-}
-
-pub struct VertexBuffer<T: Sized, const S: usize> {
-    binding: GLuint,
-    element_size: usize,
-    element_count: usize,
-    index: GLuint,
-    var_kind: GLenum,
-    draw_kind: GLenum,
-    data: Vec<[T; S]>
-}
-
-impl <T: Sized, const S: usize> Default for VertexBuffer<T, S> {
-    fn default() -> Self {
-        Self {
-            binding: 0,
-            element_size: 0,
-            element_count: 0,
-            index: 0,
-            var_kind: 0,
-            draw_kind: 0,
-            data: vec![],
-        }
-    }
-}
-
-impl <T: Sized, const S: usize> VertexBuffer<T, S> {
-    pub fn gen() -> Option<VertexBuffer<T, S>> {
-        let mut out = Self::default();
-        unsafe {
-            GenBuffers(1, &mut out.binding);
-            if out.binding != 0 {
-                Some(out)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn load(&mut self, content: Vec<[T; S]>, reload: bool) -> &mut Self {
-        self.element_size = size_of::<[T; S]>();
-        self.element_count = content.len();
-        self.data = content;
-        unsafe {
-            BindBuffer(ARRAY_BUFFER, self.binding);
-            BufferData(ARRAY_BUFFER, (self.element_size * self.element_count) as GLsizeiptr, self.data.as_ptr() as *const c_void, STATIC_DRAW);
-        }
-        if reload {
-            self.enable(self.index, self.var_kind, self.draw_kind);
-        }
-        self
-    }
-
-    pub fn enable(&mut self, index: GLuint, var_kind: GLenum, draw_kind: GLenum) -> &mut Self {
-        self.index = index;
-        self.var_kind = var_kind;
-        self.draw_kind = draw_kind;
-        unsafe {
-            VertexAttribPointer(index, S as GLint, var_kind, FALSE, self.element_size as GLsizei, 0 as *const _);
-            EnableVertexAttribArray(index);
-        }
-        self
-    }
-
-    pub fn draw(&self) {
-        unsafe {
-            DrawArrays(self.draw_kind, 0, self.element_count as GLsizei);
-        }
-    }
 }
 
 impl ShaderProgramBuilder {

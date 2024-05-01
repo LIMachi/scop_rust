@@ -2,7 +2,7 @@ use std::ops::{Mul, MulAssign};
 use super::matrix::Matrix;
 use super::vector::Vector;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Quat {
     pub r: f32,
     pub i: f32,

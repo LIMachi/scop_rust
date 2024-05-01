@@ -17,21 +17,23 @@ impl ParsedTexture {
     }
 
     pub fn parse(mut file: File) -> Option<Self> {
-        let mut out = Self::default();
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).ok()?;
 
         if bytes.len() < 6 || bytes[0] != 'B' as u8 || bytes[1] != 'M' as u8 {
+            println!("invalid header");
             return None; //invalid header
         }
 
         if bytes.len() != u32::from_ne_bytes(bytes[2..6].try_into().ok()?) as usize {
-            return None; //invalid bytes size
+            println!("invalid file size");
+            return None; //invalid file size
         }
 
         let pixel_data = u32::from_ne_bytes(bytes[10..14].try_into().ok()?) as usize;
 
         let dib_size = u32::from_ne_bytes(bytes[14..18].try_into().ok()?);
+        
         let (width, height, bpp, dib_offset, compression) = if dib_size == 12 {
             if u16::from_ne_bytes(bytes[22..24].try_into().ok()?) != 1 {
                 return None; //invalid planes count
@@ -57,12 +59,19 @@ impl ParsedTexture {
         };
 
         if compression != 0 || !(bpp == 24 || bpp == 32) {
+            println!("unsuported compression format: {compression} bpp: {bpp}");
             return None; //for now, only support standard RGB format
         }
 
         let row_size = ((bpp * width + 31) / 32) * 4;
         let column_size = if bpp == 24 { 3 } else { 4 };
 
+        let mut out = Self {
+            width,
+            height,
+            data: vec![0u8; width * height * 3],
+        };
+        
         for y in 0..height {
             for x in 0..width {
                 let p = y * row_size + x * column_size + pixel_data;

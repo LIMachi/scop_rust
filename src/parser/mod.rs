@@ -86,7 +86,7 @@ pub struct ParsedMaterialLib(pub HashMap<String, ParsedMaterial>);
 
 #[derive(Debug, Default, Clone)]
 pub struct ParsedTexture {
-    width: usize,
-    height: usize,
-    data: Vec<u8>,
+    pub width: usize,
+    pub height: usize,
+    pub data: Vec<u8>,
 }

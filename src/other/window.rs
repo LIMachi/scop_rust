@@ -1,7 +1,6 @@
 use glutin::{ContextBuilder, ContextWrapper, PossiblyCurrent};
 use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
-
 pub type Ctx = ContextWrapper<PossiblyCurrent, Window>;
 
 pub fn spawn_single_window(builder: WindowBuilder) -> Option<(Ctx, EventLoop<()>)> {

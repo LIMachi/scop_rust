@@ -44,9 +44,16 @@ impl ResourceManager {
         Some(value)
     }
 
-    fn resolve_full_path<S: Into<String>>(&mut self, key: S) -> Option<String> {
+    fn resolve_full_path<S: Into<String>>(&mut self, key: S, extensions: &[&str]) -> Option<String> {
         let name = key.into();
         if !self.map.contains_key(&name) {
+            for ext in extensions {
+                if !name.ends_with(ext) {
+                    if let Some(f) = self.resolve_full_path(format!("{name}.{ext}"), &[]) {
+                        return Some(f);
+                    }
+                }
+            }
             let path = PathBuf::from(&name);
             if !path.is_dir() && path.exists() {
                 return self.insert_map(&name, path);
@@ -64,7 +71,7 @@ impl ResourceManager {
     }
 
     pub fn load_object<S: Into<String>>(&mut self, key: S) -> Option<&ParsedObject> {
-        if let Some(p) = self.resolve_full_path(key) {
+        if let Some(p) = self.resolve_full_path(key, &["obj"]) {
             if !self.objects.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(object) = ParsedObject::parse(self, file) {
@@ -79,7 +86,7 @@ impl ResourceManager {
     }
 
     pub fn load_material_lib<S: Into<String>>(&mut self, key: S) -> Option<&ParsedMaterialLib> {
-        if let Some(p) = self.resolve_full_path(key) {
+        if let Some(p) = self.resolve_full_path(key, &["mtl"]) {
             if !self.materials.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(material) = ParsedMaterialLib::parse(self, file) {
@@ -94,7 +101,7 @@ impl ResourceManager {
     }
 
     pub fn load_texture<S: Into<String>>(&mut self, key: S) -> Option<&ParsedTexture> {
-        if let Some(p) = self.resolve_full_path(key) {
+        if let Some(p) = self.resolve_full_path(key, &["bmp"]) {
             if !self.textures.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(texture) = ParsedTexture::parse(file) {
@@ -109,7 +116,7 @@ impl ResourceManager {
     }
 
     pub fn load_text<S: Into<String>>(&mut self, key: S) -> Option<&String> {
-        if let Some(p) = self.resolve_full_path(key) {
+        if let Some(p) = self.resolve_full_path(key, &["txt", "frag", "vert"]) {
             if !self.text.contains_key(&p) {
                 if let Ok(mut file) = File::open(&p) {
                     let mut text = String::new();

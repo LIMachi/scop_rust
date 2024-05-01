@@ -5,12 +5,8 @@ in vec3 pos;
 in vec2 uv;
 in vec3 normal;
 
-uniform sampler2D tex;
+uniform sampler2D tex2;
 
 void main() {
-//	if (tex != 0) {
-		color = vec4(texture(tex, uv).rgb, 1);
-//	} else {
-//		color = vec4(pos, 1);
-//	}
+	color = vec4(texture(tex2, uv).rgb, 1);
 }
