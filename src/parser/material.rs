@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use super::{ParsedMaterial, ParsedMaterialLib};
@@ -5,6 +6,12 @@ use crate::other::resource_manager::ResourceManager;
 
 impl ParsedMaterialLib {
 
+    pub fn with_default_material() -> Self {
+        let mut map = HashMap::with_capacity(1);
+        map.insert("default".to_string(), ParsedMaterial::default());
+        Self(map)
+    }
+    
     pub fn merge(&mut self, other: &Self) {
         self.0.extend(other.0.iter().map(|(k, v)| (k.clone(), v.clone())));
     }

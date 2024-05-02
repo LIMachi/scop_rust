@@ -22,6 +22,7 @@ pub enum Inputs {
     ToggleRotation,
     ToggleSpeedUp,
     ToggleFade,
+    ToggleMode
 }
 
 impl Inputs {
@@ -42,6 +43,7 @@ impl Inputs {
         out.map(Self::ToggleRotation, VirtualKeyCode::R);
         out.map(Self::ToggleSpeedUp, VirtualKeyCode::LControl);
         out.map(Self::ToggleFade, VirtualKeyCode::F);
+        out.map(Self::ToggleMode, VirtualKeyCode::M);
         out
     }
     

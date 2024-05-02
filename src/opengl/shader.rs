@@ -1,6 +1,5 @@
 use gl::{*, types::*};
-use crate::maths::matrix::Matrix;
-use crate::maths::vector::Vector;
+use crate::opengl::enums::Shaders;
 use crate::opengl::uniform::Uniform;
 use crate::other::resource_manager::ResourceManager;
 
@@ -12,8 +11,8 @@ pub struct ShaderProgram {
 impl ShaderProgram {
     pub fn from_resources(resources: &mut ResourceManager, name: &str) -> Option<Self> {
         let mut builder = ShaderProgramBuilder::default();
-        builder.add_shader(VERTEX_SHADER, resources.load_text(format!("{name}.vert"))?.as_str());
-        builder.add_shader(FRAGMENT_SHADER, resources.load_text(format!("{name}.frag"))?.as_str());
+        builder.add_shader(Shaders::Vertex, resources.load_text(format!("{name}.vert"))?.as_str());
+        builder.add_shader(Shaders::Fragment, resources.load_text(format!("{name}.frag"))?.as_str());
         builder.build()
     }
 
@@ -38,9 +37,9 @@ pub struct ShaderProgramBuilder {
 
 impl ShaderProgramBuilder {
 
-    pub fn add_shader(&mut self, kind: GLenum, source: &str) -> &mut Self {
+    pub fn add_shader(&mut self, kind: Shaders, source: &str) -> &mut Self {
         unsafe {
-            let shader = gl::CreateShader(kind);
+            let shader = gl::CreateShader(kind.into());
             if shader == 0 {
                 return self;
             }

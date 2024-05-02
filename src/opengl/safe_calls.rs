@@ -1,4 +1,5 @@
 use gl::types::GLsizei;
+use crate::opengl::enums::{RenderMode, Side};
 
 pub fn clear_screen() {
     unsafe {
@@ -21,6 +22,22 @@ pub fn set_depth_test(state: bool) {
         } else {
             gl::Disable(gl::DEPTH_TEST);
         }
+    }
+}
+
+pub fn set_cull_face(state: bool) {
+    unsafe {
+        if state {
+            gl::Enable(gl::CULL_FACE);
+        } else {
+            gl::Disable(gl::CULL_FACE);
+        }
+    }
+}
+
+pub fn set_draw_mode(side: Side, mode: RenderMode) {
+    unsafe {
+        gl::PolygonMode(side.into(), mode.into());
     }
 }
 

@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use crate::maths::vector::Vector;
-use super::{ParsedObject, Point};
+use super::{ParsedMaterialLib, ParsedObject, Point};
 use crate::other::resource_manager::ResourceManager;
 
 impl ParsedObject {
@@ -26,6 +26,7 @@ impl ParsedObject {
     
     pub fn parse(resources: &mut ResourceManager, file: File) -> Option<Self> {
         let mut out = Self::default();
+        out.libs = ParsedMaterialLib::with_default_material();
         for line in BufReader::new(file).lines().filter_map(|l| l.ok()) {
             let columns = line.split_whitespace().collect::<Vec<&str>>();
             if columns.len() >= 2 {
@@ -128,6 +129,9 @@ impl ParsedObject {
                     _ => {}
                 }
             }
+        }
+        if out.materials.len() == 0 && out.faces.len() > 0 {
+            out.materials.push("default".to_string());
         }
         if out.groups.len() == 0 && out.faces.len() > 0 { //fix missing / undeclared groups
             out.groups.push([0, 0, out.faces.len() - 1]);

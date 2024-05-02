@@ -5,3 +5,4 @@ pub mod material;
 pub mod texture;
 pub mod part;
 pub mod uniform;
+pub mod enums;
