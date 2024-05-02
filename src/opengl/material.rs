@@ -1,5 +1,6 @@
 use crate::opengl::shader::ShaderProgram;
 use crate::opengl::texture::Texture;
+use crate::opengl::uniform::Uniform;
 
 #[derive(Default, Debug)]
 pub struct Material {
@@ -21,6 +22,15 @@ pub struct Material {
     pub bump_map: usize,
     pub displacement_map: usize,
     pub stencil_map: usize,
+    pub ambient_uniform: Uniform,
+    pub diffuse_uniform: Uniform,
+    pub transparency_uniform: Uniform,
+    pub specular_exponent_uniform: Uniform,
+    pub specular_uniform: Uniform,
+    pub emissive_uniform: Uniform,
+    pub bump_uniform: Uniform,
+    pub displacement_uniform: Uniform,
+    pub stencil_uniform: Uniform,
 }
 
 impl Material {
@@ -37,16 +47,39 @@ impl Material {
             self.stencil_map
         ]
     }
-
-    pub fn bake(&self, textures: &mut Vec<Texture>) {
-        for t in self.maps() {
-            textures[t].bake();
-        }
+    
+    pub fn uniforms(&self) -> [Uniform; 9] {
+        [
+            self.ambient_uniform,
+            self.diffuse_uniform,
+            self.transparency_uniform,
+            self.specular_exponent_uniform,
+            self.specular_uniform,
+            self.emissive_uniform,
+            self.bump_uniform,
+            self.displacement_uniform,
+            self.stencil_uniform
+        ]
     }
 
-    pub fn bind(&self, textures: &Vec<Texture>, shader: &ShaderProgram) {
-        for (i, t) in self.maps().iter().enumerate() {
-            textures[*t].bind(i, shader);
+    pub fn bake(&mut self, textures: &mut Vec<Texture>, program: &ShaderProgram) {
+        for t in self.maps().iter() {
+            textures[*t].bake();
+        }
+        self.ambient_uniform = program.uniform("ambient");
+        self.diffuse_uniform = program.uniform("diffuse");
+        self.transparency_uniform = program.uniform("transparency");
+        self.specular_exponent_uniform = program.uniform("specular_exponent");
+        self.specular_uniform = program.uniform("specular");
+        self.emissive_uniform = program.uniform("emissive");
+        self.bump_uniform = program.uniform("bump");
+        self.displacement_uniform = program.uniform("displacement");
+        self.stencil_uniform = program.uniform("stencil");
+    }
+
+    pub fn bind(&self, textures: &Vec<Texture>) {
+        for (i, (t, u)) in self.maps().iter().zip(self.uniforms()).enumerate() {
+            textures[*t].bind(i, u);
         }
     }
 }

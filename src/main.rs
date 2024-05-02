@@ -52,21 +52,27 @@ fn main() {
             safe_calls::set_depth_test(true);
 
             for object in objects.iter_mut() {
-                object.bake();
+                object.bake(&program);
             }
             // object.render_flags = 1;
 
             let size = ctx.window().inner_size();
-            let proj = Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 10000.);
-            program.set_mat("proj", proj);
-            let mut camera = Transform::from_look_at(Vector::X * 50., Vector::default())/*Transform::from_pos(Vector::X * 50.)*/;
-            program.set_mat("camera", camera.as_view_matrix());
+            let uniform_proj = program.uniform("proj");
+            uniform_proj.mat(Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 10000.));
+            
+            let mut camera = Transform::from_look_at(Vector::X * 50., Vector::default());
+            let uniform_camera = program.uniform("camera");
+            uniform_camera.mat(camera.as_view_matrix());
 
             let mut timer = std::time::Instant::now();
             
             let mut rotate = false;
             let mut speed_up = false;
-
+            let mut fade_in = false;
+            
+            let mut fade = 0f32;
+            let uniform_fade = program.uniform("fade");
+            
             event_loop.run(move |event, _target, control_flow| {
                 match event {
                     Event::WindowEvent {
@@ -79,8 +85,7 @@ fn main() {
                         }
                         if let WindowEvent::Resized(size) = event {
                             safe_calls::resize(size.width, size.height);
-                            let proj = Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 10000.);
-                            program.set_mat("proj", proj);
+                            uniform_proj.mat(Matrix::projection(size.height as f32 / size.width as f32, 90f32.to_radians(), 0.1, 10000.));
                         }
                         if event == WindowEvent::CloseRequested {
                             *control_flow = ControlFlow::Exit
@@ -94,7 +99,7 @@ fn main() {
                         if elapsed.as_secs_f64() >= 1. / 60. {
                             timer = std::time::Instant::now();
                             if Inputs::apply_to_camera(&mut camera, &inputs, speed_up) {
-                                program.set_mat("camera", camera.as_view_matrix());
+                                uniform_camera.mat(camera.as_view_matrix());
                             }
                             if inputs.status(Inputs::ToggleRotation).just_pressed() {
                                 rotate = !rotate;
@@ -102,7 +107,12 @@ fn main() {
                             if inputs.status(Inputs::ToggleSpeedUp).just_pressed() {
                                 speed_up = !speed_up;
                             }
+                            if inputs.status(Inputs::ToggleFade).just_pressed() {
+                                fade_in = !fade_in;
+                            }
                             safe_calls::clear_screen();
+                            fade = (fade + if fade_in { 0.02 } else { -0.02 }).clamp(0., 1.);
+                            uniform_fade.float(fade);
                             for object in objects.iter_mut() {
                                 if rotate {
                                     object.transform.rotate_local(Vector::Y, 1f32.to_radians());

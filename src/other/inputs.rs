@@ -20,7 +20,8 @@ pub enum Inputs {
     UpYaw,
     DownYaw,
     ToggleRotation,
-    ToggleSpeedUp
+    ToggleSpeedUp,
+    ToggleFade,
 }
 
 impl Inputs {
@@ -40,6 +41,7 @@ impl Inputs {
         out.map(Self::DownYaw, VirtualKeyCode::Down);
         out.map(Self::ToggleRotation, VirtualKeyCode::R);
         out.map(Self::ToggleSpeedUp, VirtualKeyCode::LControl);
+        out.map(Self::ToggleFade, VirtualKeyCode::F);
         out
     }
     

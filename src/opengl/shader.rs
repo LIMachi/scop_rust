@@ -1,6 +1,7 @@
 use gl::{*, types::*};
 use crate::maths::matrix::Matrix;
 use crate::maths::vector::Vector;
+use crate::opengl::uniform::Uniform;
 use crate::other::resource_manager::ResourceManager;
 
 #[derive(Default)]
@@ -19,29 +20,13 @@ impl ShaderProgram {
     pub fn new(id: GLuint) -> Self {
         Self { id }
     }
-
-    pub fn set_float(&self, name: &str, value: f32) {
-        unsafe {
-            gl::Uniform1f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value);
-        }
+    
+    pub fn id(&self) -> GLuint {
+        self.id
     }
 
-    pub fn set_vec(&self, name: &str, value: Vector) {
-        unsafe {
-            gl::Uniform4f(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value.x(), value.y(), value.z(), value.w());
-        }
-    }
-
-    pub fn set_mat(&self, name: &str, value: Matrix) {
-        unsafe {
-            gl::UniformMatrix4fv(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), 1, TRUE, value.as_array().as_mut_ptr() as *const f32);
-        }
-    }
-
-    pub fn set_int(&self, name: &str, value: i32) {
-        unsafe {
-            gl::Uniform1i(gl::GetUniformLocation(self.id, format!("{name}\0").as_ptr() as *const GLchar), value);
-        }
+    pub fn uniform(&self, name: &str) -> Uniform {
+        Uniform::new(self, name)
     }
 }
 

@@ -6,6 +6,7 @@ use crate::opengl::material::Material;
 use crate::opengl::part::ObjectPart;
 use crate::opengl::shader::ShaderProgram;
 use crate::opengl::texture::Texture;
+use crate::opengl::uniform::Uniform;
 use crate::other::resource_manager::ResourceManager;
 use crate::parser::ParsedObject;
 
@@ -18,6 +19,8 @@ pub struct Object {
     pub current_part: usize,
     pub render_flags: i32,
     pub transform: Transform,
+    pub uniform_mat: Uniform,
+    pub uniform_flags: Uniform,
 }
 
 impl Default for Object {
@@ -29,13 +32,15 @@ impl Default for Object {
             parts: vec![],
             current_part: 0,
             render_flags: 0,
-            transform: Transform::default(),
+            transform: Default::default(),
+            uniform_mat: Default::default(),
+            uniform_flags: Default::default(),
         }
     }
 }
 
 impl Object {
-    pub fn bake(&mut self) {
+    pub fn bake(&mut self, program: &ShaderProgram) {
         if self.vao == 0 {
             unsafe {
                 gl::GenVertexArrays(1, &mut self.vao);
@@ -44,14 +49,16 @@ impl Object {
             if self.vao == 0 {
                 return;
             }
+            self.uniform_flags = program.uniform("flags");
+            self.uniform_mat = program.uniform("object");
+            for m in &mut self.materials {
+                m.bake(&mut self.textures, program);
+            }
+            for p in &mut self.parts {
+                p.bake();
+            }
+            self.current_part = self.parts.len(); //force the binding of the vbos on first draw
         }
-        for m in &self.materials {
-            m.bake(&mut self.textures);
-        }
-        for p in &mut self.parts {
-            p.bake();
-        }
-        self.current_part = self.parts.len(); //force the binding of the vbos on first draw
     }
     
     pub fn bind(&self) {
@@ -64,10 +71,10 @@ impl Object {
     
     pub fn draw(&mut self, program: &ShaderProgram) {
         if self.vao != 0 {
-            program.set_mat("object", self.transform.into());
-            program.set_int("flags", self.render_flags);
+            self.uniform_mat.mat(self.transform.into());
+            self.uniform_flags.int(self.render_flags);
             for (i, p) in self.parts.iter().enumerate() {
-                self.materials[p.material].bind(&self.textures, program);
+                self.materials[p.material].bind(&self.textures);
                 if self.current_part != i {
                     self.current_part = i;
                     p.bind();

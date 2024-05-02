@@ -1,14 +1,14 @@
 use std::ffi::c_void;
 use gl::{ActiveTexture, BindTexture, CLAMP_TO_BORDER, GenerateMipmap, GenTextures, LINEAR, RGB, TexImage2D, TexParameteri, TEXTURE0, TEXTURE_2D, TEXTURE_MAG_FILTER, TEXTURE_MIN_FILTER, TEXTURE_WRAP_S, TEXTURE_WRAP_T, UNSIGNED_BYTE};
 use gl::types::{GLenum, GLint, GLsizei, GLuint};
-use crate::opengl::shader::ShaderProgram;
+use crate::opengl::uniform::Uniform;
 
 #[derive(Default, Debug)]
 pub struct Texture {
     pub name: GLuint,
     pub width: usize,
     pub height: usize,
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }
 
 impl Texture {
@@ -65,7 +65,7 @@ impl Texture {
         }
     }
 
-    pub fn bind(&self, tex_offset: usize, shader: &ShaderProgram) {
+    pub fn bind(&self, tex_offset: usize, sampler: Uniform) {
         unsafe {
             if self.name != 0 {
                 //set this texture active for all subsequent functions
@@ -73,8 +73,7 @@ impl Texture {
                 //take the texture and bind it to the texture indexed by the given offset
                 ActiveTexture(TEXTURE0 + tex_offset as GLenum);
                 //bind the texture sampler to the uniform location 'tex<offset>'
-                shader.set_int(format!("tex{tex_offset}").as_str(), tex_offset as i32);
-                // Uniform1i(tex_offset as GLint, tex_offset as GLint);
+                sampler.int(tex_offset as i32);
             }
         }
     }
