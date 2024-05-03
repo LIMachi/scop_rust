@@ -69,7 +69,7 @@ impl Object {
         }
     }
     
-    pub fn draw(&mut self, program: &ShaderProgram) {
+    pub fn draw(&mut self) {
         if self.vao != 0 {
             self.uniform_mat.mat(self.transform.into());
             self.uniform_flags.int(self.render_flags);

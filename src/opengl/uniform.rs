@@ -7,6 +7,7 @@ use crate::opengl::shader::ShaderProgram;
 #[derive(Default, Debug, Copy, Clone)]
 pub struct Uniform(GLint);
 
+#[allow(dead_code)]
 impl Uniform {
     pub fn new(shader: &ShaderProgram, name: &str) -> Self {
         unsafe {

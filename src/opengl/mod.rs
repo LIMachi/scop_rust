@@ -1,5 +1,6 @@
 pub mod shader;
 pub mod object;
+#[allow(dead_code)]
 pub mod safe_calls;
 pub mod material;
 pub mod texture;

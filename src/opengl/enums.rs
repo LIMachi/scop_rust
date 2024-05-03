@@ -1,5 +1,6 @@
 use gl::types::GLenum;
 
+#[allow(dead_code)]
 #[derive(Default, Debug, Copy, Clone)]
 pub enum Side {
     #[default]

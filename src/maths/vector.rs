@@ -28,7 +28,7 @@ impl <const S: usize> From<[f32; S]> for Vector {
 impl Mul<f32> for Vector {
     type Output = Vector;
 
-    fn mul(mut self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: f32) -> Self::Output {
         self.scale(rhs)
     }
 }
@@ -36,7 +36,7 @@ impl Mul<f32> for Vector {
 impl Mul<Vector> for f32 {
     type Output = Vector;
 
-    fn mul(self, mut rhs: Vector) -> Self::Output {
+    fn mul(self, rhs: Vector) -> Self::Output {
         rhs.scale(self)
     }
 }
@@ -182,7 +182,7 @@ impl Vector {
         self
     }
     
-    pub fn normalize(mut self) -> Self {
+    pub fn normalize(self) -> Self {
         let sqr = self.len_sqr();
         if sqr != 1. && sqr != 0. {
             self.scale(1. / sqr.sqrt())

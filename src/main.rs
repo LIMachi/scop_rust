@@ -40,7 +40,7 @@ fn main() {
             .with_visible(true)
             .with_fullscreen(Some(Fullscreen::Borderless(None)))
         ) {
-            ctx.window().set_cursor_grab(true);
+            ctx.window().set_cursor_grab(true).unwrap(); //should never produce an error since this project is to be tested on computers
             ctx.window().set_cursor_visible(false);
             let program = ShaderProgram::from_resources(&mut resources, "triangle").unwrap();
             let mut objects: Vec<Object> = parsed.iter().enumerate().map(|(i, s)| {
@@ -100,7 +100,7 @@ fn main() {
                             *control_flow = ControlFlow::Exit
                         } else if let WindowEvent::Focused(focused) = event {
                             ctx.window().set_cursor_visible(!focused);
-                            ctx.window().set_cursor_grab(focused);
+                            ctx.window().set_cursor_grab(focused).unwrap(); //should never produce an error since this project is to be tested on computers
                             focus = focused;
                         }
                     }
@@ -149,7 +149,7 @@ fn main() {
                                     object.transform.rotate_local(Vector::Y, 1f32.to_radians());
                                 }
                                 object.bind();
-                                object.draw(&program);
+                                object.draw();
                             }
                             ctx.swap_buffers().unwrap();
                             inputs.tick();

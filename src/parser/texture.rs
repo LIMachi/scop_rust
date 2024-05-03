@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use super::ParsedTexture;
 
+#[allow(dead_code)]
 impl ParsedTexture {
     pub fn is_empty(&self) -> bool {
         self.width == 0 || self.height == 0
@@ -34,7 +35,7 @@ impl ParsedTexture {
 
         let dib_size = u32::from_ne_bytes(bytes[14..18].try_into().ok()?);
         
-        let (width, height, bpp, dib_offset, compression) = if dib_size == 12 {
+        let (width, height, bpp, _dib_offset, compression) = if dib_size == 12 {
             if u16::from_ne_bytes(bytes[22..24].try_into().ok()?) != 1 {
                 return None; //invalid planes count
             }

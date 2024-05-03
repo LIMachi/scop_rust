@@ -18,7 +18,9 @@ void main() {
 	vec4 p = object * vec4(v_pos, 1.0);
 	gl_Position = proj * camera * p;
 	pos = p.xyz;
-	color = v_color;
+//	color = v_color;
+	float t = float((gl_VertexID / 3) % 16) / 16;
+	color = vec3(t, t, t);
 	uv = v_uv.xy;
 	normal = vec3(transpose(inverse(object)) * vec4(v_normal, 1.0));
 }

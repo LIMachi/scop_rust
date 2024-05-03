@@ -12,6 +12,7 @@ pub enum InputStatus {
     JustReleased
 }
 
+#[allow(dead_code)]
 impl InputStatus {
     pub fn new(pressed: bool) -> Self {
         if pressed {
