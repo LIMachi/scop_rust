@@ -1,29 +1,24 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use gl::types::GLuint;
-use crate::maths::transform::Transform;
 use crate::opengl::material::Material;
 use crate::opengl::part::ObjectPart;
-use crate::opengl::shader::ShaderProgram;
+use crate::opengl::shader::{Drawable, ShaderProgram};
 use crate::opengl::texture::Texture;
-use crate::opengl::uniform::Uniform;
 use crate::other::resource_manager::ResourceManager;
 use crate::parser::ParsedObject;
 
 #[derive(Debug)]
-pub struct Object {
+pub struct Model {
     pub vao: GLuint,
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
     pub parts: Vec<ObjectPart>,
     pub current_part: usize,
     pub render_flags: i32,
-    pub transform: Transform,
-    pub uniform_mat: Uniform,
-    pub uniform_flags: Uniform,
 }
 
-impl Default for Object {
+impl Default for Model {
     fn default() -> Self {
         Self {
             vao: 0,
@@ -32,58 +27,11 @@ impl Default for Object {
             parts: vec![],
             current_part: 0,
             render_flags: 0,
-            transform: Default::default(),
-            uniform_mat: Default::default(),
-            uniform_flags: Default::default(),
         }
     }
 }
 
-impl Object {
-    pub fn bake(&mut self, program: &ShaderProgram) {
-        if self.vao == 0 {
-            unsafe {
-                gl::GenVertexArrays(1, &mut self.vao);
-                gl::BindVertexArray(self.vao);
-            }
-            if self.vao == 0 {
-                return;
-            }
-            self.uniform_flags = program.uniform("flags");
-            self.uniform_mat = program.uniform("object");
-            for m in &mut self.materials {
-                m.bake(&mut self.textures, program);
-            }
-            for p in &mut self.parts {
-                p.bake();
-            }
-            self.current_part = self.parts.len(); //force the binding of the vbos on first draw
-        }
-    }
-    
-    pub fn bind(&self) {
-        if self.vao != 0 {
-            unsafe {
-                gl::BindVertexArray(self.vao);
-            }
-        }
-    }
-    
-    pub fn draw(&mut self) {
-        if self.vao != 0 {
-            self.uniform_mat.mat(self.transform.into());
-            self.uniform_flags.int(self.render_flags);
-            for (i, p) in self.parts.iter().enumerate() {
-                self.materials[p.material].bind(&self.textures);
-                if self.current_part != i {
-                    self.current_part = i;
-                    p.bind();
-                }
-                p.draw();
-            }
-        }
-    }
-    
+impl Model {
     pub fn new(resources: &mut ResourceManager, parsed: &ParsedObject) -> Self {
         let mut out = Self::default();
         let mut texture_map: HashMap<String, usize> = HashMap::new();
@@ -130,15 +78,15 @@ impl Object {
                 ..Default::default()
             };
             for (pt, mt) in [
-                    (&p.specular_exponent_map, &mut mat.specular_exponent_map),
-                    (&p.ambient_map, &mut mat.ambient_map),
-                    (&p.diffuse_map, &mut mat.diffuse_map),
-                    (&p.specular_map, &mut mat.specular_map),
-                    (&p.transparency_map, &mut mat.transparency_map), 
-                    (&p.bump_map, &mut mat.bump_map),
-                    (&p.displacement_map, &mut mat.displacement_map),
-                    (&p.stencil_map, &mut mat.stencil_map),
-                    (&p.emissive_map, &mut mat.emissive_map)
+                (&p.specular_exponent_map, &mut mat.specular_exponent_map),
+                (&p.ambient_map, &mut mat.ambient_map),
+                (&p.diffuse_map, &mut mat.diffuse_map),
+                (&p.specular_map, &mut mat.specular_map),
+                (&p.transparency_map, &mut mat.transparency_map),
+                (&p.bump_map, &mut mat.bump_map),
+                (&p.displacement_map, &mut mat.displacement_map),
+                (&p.stencil_map, &mut mat.stencil_map),
+                (&p.emissive_map, &mut mat.emissive_map)
             ] {
                 if pt != "" {
                     *mt = if let Some(texture) = texture_map.get(pt) {
@@ -170,5 +118,49 @@ impl Object {
             }
         });
         out
+    }
+}
+
+impl Drawable for Model {
+    fn bake(&mut self, program: &ShaderProgram) {
+        if self.vao == 0 {
+            unsafe {
+                gl::GenVertexArrays(1, &mut self.vao);
+                gl::BindVertexArray(self.vao);
+            }
+            if self.vao == 0 {
+                return;
+            }
+            for m in &mut self.materials {
+                m.bake(&mut self.textures, program);
+            }
+            for p in &mut self.parts {
+                p.bake();
+            }
+            self.current_part = self.parts.len(); //force the binding of the vbos on first draw
+        }
+    }
+    
+    fn bind(&self) {
+        if self.vao != 0 {
+            unsafe {
+                gl::BindVertexArray(self.vao);
+            }
+        }
+    }
+    
+    fn draw(&mut self) {
+        if self.vao != 0 {
+            for (i, p) in self.parts.iter().enumerate() {
+                if p.material < self.materials.len() {
+                    self.materials[p.material].bind(&self.textures);
+                }
+                if self.current_part != i {
+                    self.current_part = i;
+                    p.bind();
+                }
+                p.draw();
+            }
+        }
     }
 }

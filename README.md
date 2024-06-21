@@ -8,6 +8,7 @@ References used:
 - Mat format: https://en.wikipedia.org/wiki/Wavefront_.obj_file#Material_template_library
 - Bmp format: https://en.wikipedia.org/wiki/BMP_file_format
 - rust OpenGL usage (SDL2): https://rust-tutorials.github.io/learn-opengl/basics/001-drawing-a-triangle.html
+- opengl techniques: https://learnopengl.com/Introduction
 - general OpenGL / GLSL usage: https://www.khronos.org/opengl/wiki / https://registry.khronos.org/OpenGL-Refpages/es3/
 
 Rust version: `rustc 1.77.2`
@@ -23,23 +24,23 @@ Completion:
 - [x] bmp parsing
 - [x] windowing
 - [x] perspective
-- [x] centered rotation
+- [ ] centered rotation
 - [x] colors / shades of grey to distinguish faces
 - [ ] object can move in any directions -> need to add inputs to control object instead of camera
-- [x] application of texture -> only works with mtl declared textures for now
-- [x] soft transition between colored and textured faces
+- [ ] application of texture -> only works with mtl declared textures for now
+- [ ] soft transition between colored and textured faces
 - [x] reimplement matrices and vectors (even quaternions)
 
 Bonuses:
-- [x] handle teapot (missing materials, missing groups)
+- [ ] handle teapot (missing materials, missing groups)
 - [ ] non stretched textures on objects without uvs/materials
-- [x] free camera movement
+- [ ] free camera movement
 - [x] multiples objects
-- [ ] TODO
-- [ ] TODO
-- [ ] TODO
+- [x] instancing
+- [ ] lights
+- [ ] shadows
 
-Testing:
+Testing (currently disable for rework):
 - Key binds:
 - - W / A / S / D -> horizontal camera movement
 - - Space / Left Shift -> vertical camera movement

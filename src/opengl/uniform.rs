@@ -1,7 +1,6 @@
-use gl::TRUE;
-use gl::types::{GLchar, GLint};
-use crate::maths::matrix::Matrix;
-use crate::maths::vector::Vector;
+use gl::types::{GLchar, GLint, GLsizei};
+use crate::maths::matrix::{Mat3, Mat4};
+use crate::maths::vector::{Vec3, Vec4};
 use crate::opengl::shader::ShaderProgram;
 
 #[derive(Default, Debug, Copy, Clone)]
@@ -28,16 +27,40 @@ impl Uniform {
             gl::Uniform1f(self.0, value);
         }
     }
-    
-    pub fn vec(&self, value: Vector) {
+
+    pub fn vec3(&self, value: Vec3) {
         unsafe {
-            gl::Uniform4f(self.0, value.x(), value.y(), value.z(), value.w());
+            gl::Uniform3f(self.0, value[0], value[1], value[2]);
         }
     }
     
-    pub fn mat(&self, value: Matrix) {
+    pub fn array3f(&self, value: &Vec<[f32; 3]>) {
         unsafe {
-            gl::UniformMatrix4fv(self.0, 1, TRUE, value.as_array().as_mut_ptr() as *const f32);
+            gl::Uniform3fv(self.0, value.len() as GLsizei, value.as_ptr() as *const f32);
+        }
+    }
+    
+    pub fn vec4(&self, value: Vec4) {
+        unsafe {
+            gl::Uniform4f(self.0, value[0], value[1], value[2], value[3]);
+        }
+    }
+
+    pub fn mat3(&self, value: Mat3) {
+        unsafe {
+            gl::UniformMatrix3fv(self.0, 1, gl::FALSE, Vec::from(value).as_ptr());
+        }
+    }
+    
+    pub fn mat4(&self, value: Mat4) {
+        unsafe {
+            gl::UniformMatrix4fv(self.0, 1, gl::FALSE, Vec::from(value).as_ptr());
+        }
+    }
+    
+    pub fn array_mat4(&self, value: &Vec<Mat4>) {
+        unsafe {
+            gl::UniformMatrix4fv(self.0, value.len() as GLsizei, gl::FALSE, value.iter().flat_map(|m| Vec::<f32>::from(*m)).collect::<Vec<f32>>().as_ptr());
         }
     }
 }

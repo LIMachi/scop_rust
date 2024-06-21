@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use std::mem::size_of;
 use gl::types::{GLsizei, GLsizeiptr, GLuint};
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ObjectPart {
     pub material: usize,
     pub vertices: Vec<[f32; 3]>,
@@ -13,7 +13,7 @@ pub struct ObjectPart {
 }
 
 impl ObjectPart {
-    const VEC3_SIZE: usize = size_of::<[f32; 3]>();
+    pub const VEC3_SIZE: usize = size_of::<[f32; 3]>();
 
     pub fn bake(&mut self) {
         unsafe {

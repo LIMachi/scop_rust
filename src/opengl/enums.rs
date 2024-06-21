@@ -9,7 +9,7 @@ pub enum Side {
     BackOnly = gl::BACK as isize,
 }
 
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone, PartialEq)]
 pub enum RenderMode {
     #[default]
     Full = gl::FILL as isize,
@@ -21,6 +21,7 @@ pub enum RenderMode {
 pub enum Shaders {
     Vertex = gl::VERTEX_SHADER as isize,
     Fragment = gl::FRAGMENT_SHADER as isize,
+    Geometry = gl::GEOMETRY_SHADER as isize
 }
 
 impl Into<GLenum> for Side {
@@ -30,13 +31,22 @@ impl Into<GLenum> for Side {
 }
 
 impl Into<GLenum> for RenderMode {
-    fn into(self) -> GLenum {
-        self as GLenum
+    fn into(self) -> GLenum { self as GLenum }
+}
+
+impl TryFrom<GLenum> for RenderMode {
+    type Error = ();
+
+    fn try_from(value: GLenum) -> Result<Self, Self::Error> {
+        match value {
+            gl::FILL => Ok(Self::Full),
+            gl::LINE => Ok(Self::Lines),
+            gl::POINT => Ok(Self::Points),
+            _ => Err(())
+        }
     }
 }
 
 impl Into<GLenum> for Shaders {
-    fn into(self) -> GLenum {
-        self as GLenum
-    }
+    fn into(self) -> GLenum { self as GLenum }
 }

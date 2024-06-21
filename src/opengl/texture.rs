@@ -1,9 +1,10 @@
 use std::ffi::c_void;
 use gl::{ActiveTexture, BindTexture, CLAMP_TO_BORDER, GenerateMipmap, GenTextures, LINEAR, RGB, TexImage2D, TexParameteri, TEXTURE0, TEXTURE_2D, TEXTURE_MAG_FILTER, TEXTURE_MIN_FILTER, TEXTURE_WRAP_S, TEXTURE_WRAP_T, UNSIGNED_BYTE};
 use gl::types::{GLenum, GLint, GLsizei, GLuint};
+use crate::maths::vector::Vec3;
 use crate::opengl::uniform::Uniform;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Texture {
     pub name: GLuint,
     pub width: usize,
@@ -12,6 +13,15 @@ pub struct Texture {
 }
 
 impl Texture {
+    pub fn uniform(color: Vec3) -> Self {
+        Self {
+            name: 0,
+            width: 1,
+            height: 1,
+            data: vec![(color[0] * 255.).max(0.) as u8, (color[1] * 255.).max(0.) as u8, (color[2] * 255.).max(0.) as u8]
+        }
+    }
+    
     pub fn palette() -> Self {
         let mut data = vec![0; 256 * 256 * 3];
         for x in 0..256 {

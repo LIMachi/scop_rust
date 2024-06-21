@@ -2,7 +2,7 @@ use crate::opengl::shader::ShaderProgram;
 use crate::opengl::texture::Texture;
 use crate::opengl::uniform::Uniform;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Material {
     pub specular_exponent: f32,
     pub density: f32,

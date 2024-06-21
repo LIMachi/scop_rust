@@ -13,7 +13,7 @@ pub struct ResourceManager {
     objects: HashMap<String, ParsedObject>,
     materials: HashMap<String, ParsedMaterialLib>,
     textures: HashMap<String, ParsedTexture>,
-    text: HashMap<String, String>
+    texts: HashMap<String, String>
 }
 
 impl ResourceManager {
@@ -44,7 +44,7 @@ impl ResourceManager {
         Some(value)
     }
 
-    fn resolve_full_path<S: Into<String>>(&mut self, key: S, extensions: &[&str]) -> Option<String> {
+    pub fn resolve_full_path<S: Into<String>>(&mut self, key: S, extensions: &[&str]) -> Option<String> {
         let name = key.into();
         if !self.map.contains_key(&name) {
             for ext in extensions {
@@ -117,14 +117,14 @@ impl ResourceManager {
 
     pub fn load_text<S: Into<String>>(&mut self, key: S) -> Option<&mut String> {
         if let Some(p) = self.resolve_full_path(key, &["txt", "frag", "vert"]) {
-            if !self.text.contains_key(&p) {
+            if !self.texts.contains_key(&p) {
                 if let Ok(mut file) = File::open(&p) {
                     let mut text = String::new();
                     file.read_to_string(&mut text).ok()?;
-                    self.text.insert(p.clone(), text);
+                    self.texts.insert(p.clone(), text);
                 }
             }
-            self.text.get_mut(&p)
+            self.texts.get_mut(&p)
         } else {
             None
         }
