@@ -4,16 +4,17 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use crate::other::handles::Handle;
 use crate::parser::{ParsedMaterialLib, ParsedObject, ParsedTexture};
 
 #[derive(Default, Debug)]
 pub struct ResourceManager {
     hints: Vec<String>,
     map: HashMap<String, String>,
-    objects: HashMap<String, ParsedObject>,
-    materials: HashMap<String, ParsedMaterialLib>,
-    textures: HashMap<String, ParsedTexture>,
-    texts: HashMap<String, String>
+    objects: HashMap<String, Handle<ParsedObject>>,
+    materials: HashMap<String, Handle<ParsedMaterialLib>>,
+    textures: HashMap<String, Handle<ParsedTexture>>,
+    texts: HashMap<String, Handle<String>>
 }
 
 impl ResourceManager {
@@ -70,63 +71,65 @@ impl ResourceManager {
         self.map.get(&name).cloned()
     }
 
-    pub fn load_object<S: Into<String>>(&mut self, key: S) -> Option<&mut ParsedObject> {
+    pub fn load_object<S: Into<String>>(&mut self, key: S) -> Handle<ParsedObject> {
         if let Some(p) = self.resolve_full_path(key, &["obj"]) {
             if !self.objects.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(object) = ParsedObject::parse(self, file) {
-                        self.objects.insert(p.clone(), object);
+                        self.objects.insert(p.clone(), Handle::new_strong(object));
                     }
                 }
             }
-            self.objects.get_mut(&p)
+            self.objects.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
         } else {
-            None
+            Handle::EMPTY
         }
     }
 
-    pub fn load_material_lib<S: Into<String>>(&mut self, key: S) -> Option<&mut ParsedMaterialLib> {
+    pub fn load_material_lib<S: Into<String>>(&mut self, key: S) -> Handle<ParsedMaterialLib> {
         if let Some(p) = self.resolve_full_path(key, &["mtl"]) {
             if !self.materials.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(material) = ParsedMaterialLib::parse(self, file) {
-                        self.materials.insert(p.clone(), material);
+                        self.materials.insert(p.clone(), Handle::new_strong(material));
                     }
                 }
             }
-            self.materials.get_mut(&p)
+            self.materials.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
         } else {
-            None
+            Handle::EMPTY
         }
     }
 
-    pub fn load_texture<S: Into<String>>(&mut self, key: S) -> Option<&mut ParsedTexture> {
+    pub fn load_texture<S: Into<String>>(&mut self, key: S) -> Handle<ParsedTexture> {
         if let Some(p) = self.resolve_full_path(key, &["bmp"]) {
             if !self.textures.contains_key(&p) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(texture) = ParsedTexture::parse(file) {
-                        self.textures.insert(p.clone(), texture);
+                        self.textures.insert(p.clone(), Handle::new_strong(texture));
                     }
                 }
             }
-            self.textures.get_mut(&p)
+            self.textures.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
         } else {
-            None
+            Handle::EMPTY
         }
     }
 
-    pub fn load_text<S: Into<String>>(&mut self, key: S) -> Option<&mut String> {
+    pub fn load_text<S: Into<String>>(&mut self, key: S) -> Handle<String> {
         if let Some(p) = self.resolve_full_path(key, &["txt", "frag", "vert"]) {
             if !self.texts.contains_key(&p) {
                 if let Ok(mut file) = File::open(&p) {
                     let mut text = String::new();
-                    file.read_to_string(&mut text).ok()?;
-                    self.texts.insert(p.clone(), text);
+                    if file.read_to_string(&mut text).is_err() {
+                        return Handle::EMPTY;
+                    }
+                    self.texts.insert(p.clone(), Handle::new_strong(text));
                 }
             }
-            self.texts.get_mut(&p)
+            self.texts.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
         } else {
-            None
+            Handle::EMPTY
         }
     }
 }

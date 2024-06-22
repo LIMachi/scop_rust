@@ -1,18 +1,37 @@
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use crate::opengl::buffers::{GPUBuffers, VertexType};
 use crate::opengl::material::Material;
 use crate::opengl::texture::Texture;
 use crate::other::resource_manager::ResourceManager;
 use crate::parser::ParsedObject;
 
-#[derive(Default)]
-pub struct Object {
+#[derive(Default, Debug)]
+pub struct MultiPartModel {
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
     pub parts: Vec<(usize, usize, GPUBuffers)>
 }
 
-impl Object {
+impl Eq for MultiPartModel {}
+
+impl PartialEq for MultiPartModel {
+    fn eq(&self, other: &Self) -> bool {
+        self.textures.as_ptr() == other.textures.as_ptr()
+        && self.materials.as_ptr() == other.materials.as_ptr()
+        && self.parts.as_ptr() == other.parts.as_ptr()
+    }
+}
+
+impl Hash for MultiPartModel {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_usize(self.textures.as_ptr() as usize);
+        state.write_usize(self.materials.as_ptr() as usize);
+        state.write_usize(self.parts.as_ptr() as usize);
+    }
+}
+
+impl MultiPartModel {
     pub fn from_raw(vertices: Vec<[f32; 3]>, indices: Vec<u32>) -> Self {
         let mut parts = Vec::new();
         let mut t = GPUBuffers::new().unwrap();
@@ -115,12 +134,12 @@ impl Object {
                     } else {
                         let t = out.textures.len();
                         texture_map.insert(pt.clone(), t);
-                        let pt = resource_manager.load_texture(pt).unwrap();
+                        let pt = resource_manager.load_texture(pt).get().unwrap().clone();
                         out.textures.push(Texture {
                             name: 0,
                             width: pt.width,
                             height: pt.height,
-                            data: pt.data.clone(),
+                            data: pt.data,
                         });
                         t
                     };
@@ -139,7 +158,7 @@ impl Object {
             part.draw(gl::TRIANGLES, 0, *len);
         }
     }
-    
+
     pub fn draw_instances(&self, count: usize) {
         for (mat, len, part) in &self.parts {
             if *mat < self.materials.len() {

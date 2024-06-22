@@ -14,6 +14,7 @@ use crate::opengl::safe_calls;
 //https://www.khronos.org/opengl/wiki/Vertex_Specification#Vertex_Array_Object
 
 //this struct is then a glorified vao that also handles vbo/ebo usage
+#[derive(Debug)]
 pub struct GPUBuffers {
     vao: GLuint,
     vbos: HashMap<usize, GLuint>, //mapping layout -> vbo

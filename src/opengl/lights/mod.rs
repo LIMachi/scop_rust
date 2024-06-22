@@ -8,7 +8,15 @@ use crate::opengl::shader::{ShaderProgram, ShaderProgramBuilder};
 
 mod directional;
 
-pub enum Light {
+#[derive(Debug, Copy, Clone)]
+pub struct Light {
+    pub kind: LightKind,
+    pub falloff: f32,
+    pub color: Vec3
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum LightKind {
     Directional {
         direction: Vec3, //defaults to -Z
     },
@@ -25,7 +33,7 @@ pub enum Light {
 //calculate the shadow maps and light intensities of directional lights, spot lights and point lights in a scene
 pub struct Lights {
     pub program: ShaderProgram,
-    pub lights: HashMap<usize, (Light, f32, Vec3)>, //kind, falloff, color
+    pub lights: HashMap<usize, Light>, //kind, falloff, color
     pub next_id: usize,
     pub kinds: Vec<i32>, //0 directional, 1 spot, 2 point
     pub apertures: Vec<f32>,

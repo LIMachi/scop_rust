@@ -63,4 +63,10 @@ impl Uniform {
             gl::UniformMatrix4fv(self.0, value.len() as GLsizei, gl::FALSE, value.iter().flat_map(|m| Vec::<f32>::from(*m)).collect::<Vec<f32>>().as_ptr());
         }
     }
+    
+    pub fn raw_array_mat4(&self, value: &[f32]) {
+        unsafe {
+            gl::UniformMatrix4fv(self.0, (value.len() / 16) as GLsizei, gl::FALSE, value.as_ptr());
+        }
+    }
 }

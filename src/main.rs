@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::mem::{size_of, size_of_val};
+use std::ops::Add;
 use winit::event;
 use winit::event::{DeviceEvent, Event, WindowEvent};
 use winit::event_loop::ControlFlow;
@@ -12,9 +13,9 @@ use crate::maths::vector::{Vec3, Vector};
 use crate::opengl::buffers::{GPUBuffers, VertexType};
 use crate::opengl::enums::{RenderMode, Shaders, Side};
 use crate::opengl::object::Model;
-use crate::opengl::objectv2::Object;
+use crate::opengl::objectv2::MultiPartModel;
 use crate::opengl::safe_calls;
-use crate::opengl::scene::Scene;
+use crate::opengl::scenev2::Scene;
 use crate::opengl::shader::{Drawable, ShaderProgram, ShaderProgramBuilder};
 use crate::other::inputs::Inputs;
 use crate::other::resource_manager::ResourceManager;
@@ -38,15 +39,35 @@ fn main() {
 
         let mut program = ShaderProgram::from_resources(&mut resources, "default").unwrap();
         program.set_active();
-        let o1: Mat4 = Quaternion::from((Vec3::Y, 90f32.to_radians())).into();
-        let o2: Mat4 = Transform::from_look_at(Vec3::X * 1., Vec3::Z).into();
-        program.uniform("object").array_mat4(&vec![o1, o2]);
-        program.uniform("projection").mat4(Mat4::projection(80f32.to_radians(), 16./9., 0.001, 1000.));
-        program.uniform("camera").mat4(Transform::from_look_at(Vec3::Z * 2., Vec3::default()).as_view_matrix());
+        let o1 = Transform::from_look_at(Vec3::default(), Vec3::X);
+        let o2 = Transform::from_look_at(Vec3::X * 1., Vec3::Z);
+        
+        // program.uniform("object").array_mat4(&vec![o1, o2]);
+        // program.uniform("projection").mat4(Mat4::projection(80f32.to_radians(), 16./9., 0.001, 1000.));
+        // program.uniform("camera").mat4(Transform::from_look_at(Vec3::Z * 2., Vec3::default()).as_view_matrix());
 
-        let obj42 = resources.load_object("42").unwrap().clone();
-        let mut obj = Object::new(&mut resources, &obj42);
+        // let obj42 = resources.load_object("42").unwrap().clone();
+        // let mut obj = Object::new(&mut resources, &obj42);
 
+        let mut scene = Scene::new(program);
+        
+        let model = scene.load_model(&mut resources, "42");
+        
+        let mut all = Vec::new();
+        
+        all.push(scene.spawn_object(model, o1));
+        
+        //stress test: got >144 fps with ~50k (225*225) instance of "42" rotating on my gtx1070 (uncaped with a single object i get ~2000 fps)
+        //>144 fps with 900 (30*30) "dragon" rotating (uses a lot more vertices/calculations, pretty sure there might be 50* more vertices in dragon than in 42)
+        for i in 0..225 {
+            for j in 0..225 {
+                all.push(scene.spawn_object(model, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32));
+            }
+        }
+        
+        scene.set_camera(Transform::from_look_at(Vec3::Z * 100., Vec3::default()));
+        scene.set_projection(80., 16./9.);
+        
         safe_calls::set_clear_color(0., 0.5, 0.2);
         safe_calls::set_depth_test(true);
         safe_calls::set_cull_face(true);
@@ -61,8 +82,14 @@ fn main() {
                         }
                     }
                     Event::MainEventsCleared => {
+                        for h in &all {
+                            let mut t = scene.get_object(*h).unwrap();
+                            t.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
+                            scene.set_object(*h, t);
+                        }
                         safe_calls::clear_screen();
-                        obj.draw_instances(2);
+                        // obj.draw_instances(2);
+                        scene.draw();
                         window.refresh();
                     }
                     _ => {}

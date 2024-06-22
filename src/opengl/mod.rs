@@ -11,3 +11,4 @@ pub mod scene;
 pub mod lights;
 pub mod buffers;
 pub mod objectv2;
+pub mod scenev2;
