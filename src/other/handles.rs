@@ -65,100 +65,86 @@ impl <T> PartialEq for InnerRc<T> {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Handle<T> {
     id: usize,
-    data: InnerRc<T>,
-    dirty: bool
+    rc: InnerRc<(bool, T)>
 }
 
 impl <T> Eq for Handle<T> {}
 
 impl <T> PartialEq for Handle<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.id.eq(&other.id)
+        self.id == other.id
     }
 }
 
 impl <T> Hash for Handle<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state)
+        state.write_usize(self.id);
     }
 }
 
 impl <T> Handle<T> {
-    pub const EMPTY: Self = Self {
-        id: 0,
-        data: InnerRc::None,
-        dirty: false,
-    };
+    pub const EMPTY: Self = Self { id: 0, rc: InnerRc::None };
 
     pub fn new_strong(data: T) -> Self {
-        let rc = Rc::new(data);
+        let rc = Rc::new((false, data));
         Self {
             id: Rc::as_ptr(&rc) as usize,
-            data: InnerRc::Strong(rc),
-            dirty: true
+            rc: InnerRc::Strong(rc),
         }
     }
 
     pub fn clone_weak(&self) -> Self {
         Self {
             id: self.id,
-            data: match &self.data {
+            rc: match &self.rc {
                 InnerRc::None => InnerRc::None,
                 InnerRc::Strong(rc) => InnerRc::Weak(Rc::downgrade(&rc)),
                 InnerRc::Weak(rc) => InnerRc::Weak(rc.clone()),
-            },
-            dirty: true,
+            }
         }
     }
 
     pub fn clone_strong(&self) -> Self {
-        let data = match &self.data {
-            InnerRc::None => InnerRc::None,
-            InnerRc::Strong(rc) => InnerRc::Strong(rc.clone()),
-            InnerRc::Weak(rc) => if let Some(rc) = rc.upgrade() {
-                InnerRc::Strong(rc)
-            } else {
-                InnerRc::None
-            },
-        };
         Self {
             id: self.id,
-            dirty: data != InnerRc::None,
-            data,
-        }
-    }
-
-    pub fn from_rc(data: &Rc<T>) -> Self {
-        Self {
-            id: Rc::as_ptr(data) as usize,
-            data: InnerRc::Weak(Rc::downgrade(data)),
-            dirty: true
+            rc: match &self.rc {
+                InnerRc::None => InnerRc::None,
+                InnerRc::Strong(rc) => InnerRc::Strong(rc.clone()),
+                InnerRc::Weak(rc) => if let Some(rc) = rc.upgrade() {
+                    InnerRc::Strong(rc)
+                } else {
+                    InnerRc::None
+                },
+            }
         }
     }
 
     pub fn present(&self) -> bool {
-        self.data.present()
+        self.rc.present()
     }
 
     pub fn get(&self) -> Option<&T> {
-        self.data.get()
+        self.rc.get().map(|(_, d)| d)
     }
 
     pub fn get_mut(&mut self) -> Option<&mut T> {
-        if self.present() {
-            self.dirty = true;
-        }
-        self.data.get_mut()
+        self.rc.get_mut().map(|(m, d)| { *m = true; d })
     }
 
     pub fn dirty(&self) -> bool {
-        self.present() && self.dirty
+        self.rc.get().map(|(d, _)| *d).unwrap_or(false)
     }
 
-    pub fn clear_dirty(&mut self) {
-        self.dirty = false;
+    pub fn clear_dirty(&mut self) -> bool {
+        if let Some((d, _)) = self.rc.get_mut() {
+            let was_dirty = *d;
+            *d = false;
+            was_dirty
+        } else {
+            false
+        }
     }
 }

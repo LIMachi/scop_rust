@@ -55,13 +55,13 @@ fn main() {
         
         let mut all = Vec::new();
         
-        all.push(scene.spawn_object(model, o1));
+        all.push(scene.spawn_object(&model, o1));
         
-        //stress test: got >144 fps with ~50k (225*225) instance of "42" rotating on my gtx1070 (uncaped with a single object i get ~2000 fps)
+        //stress test: got >144 fps with ~53k (230*230) instance of "42" rotating on my gtx1070 (uncaped with a single object i get ~2000 fps)
         //>144 fps with 900 (30*30) "dragon" rotating (uses a lot more vertices/calculations, pretty sure there might be 50* more vertices in dragon than in 42)
-        for i in 0..225 {
-            for j in 0..225 {
-                all.push(scene.spawn_object(model, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32));
+        for i in 0..230 {
+            for j in 0..230 {
+                all.push(scene.spawn_object(&model, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32));
             }
         }
         
@@ -82,10 +82,11 @@ fn main() {
                         }
                     }
                     Event::MainEventsCleared => {
-                        for h in &all {
-                            let mut t = scene.get_object(*h).unwrap();
-                            t.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
-                            scene.set_object(*h, t);
+                        for h in &mut all {
+                            // let mut t = scene.get_object(*h).unwrap();
+                            // t.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
+                            // scene.set_object(*h, t);
+                            h.get_mut().unwrap().transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
                         }
                         safe_calls::clear_screen();
                         // obj.draw_instances(2);
