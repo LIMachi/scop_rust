@@ -69,4 +69,10 @@ impl Uniform {
             gl::UniformMatrix4fv(self.0, (value.len() / 16) as GLsizei, gl::FALSE, value.as_ptr());
         }
     }
+    
+    pub fn array_int(&self, value: &[i32]) {
+        unsafe {
+            gl::Uniform1iv(self.0, value.len() as GLsizei, value.as_ptr());
+        }
+    }
 }

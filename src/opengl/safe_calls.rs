@@ -17,7 +17,6 @@ pub fn set_depth_test(state: bool) {
     unsafe {
         if state {
             gl::Enable(gl::DEPTH_TEST);
-            // gl::DepthFunc(gl::GREATER);
             gl::DepthFunc(gl::LESS);
         } else {
             gl::Disable(gl::DEPTH_TEST);

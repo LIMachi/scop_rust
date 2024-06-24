@@ -36,11 +36,9 @@ impl GlWindow {
                 .ok()?
         };
         gl::load_with(|s| context.get_proc_address(s) as *const _);
-        context.window().set_cursor_grab(true).unwrap();
-        context.window().set_cursor_visible(false);
         Some((Self {
             context,
-            focused: true,
+            focused: false,
         }, event_loop))
     }
     

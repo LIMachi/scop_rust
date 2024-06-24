@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::env;
 use std::mem::{size_of, size_of_val};
 use std::ops::Add;
+use winit::dpi::PhysicalPosition;
 use winit::event;
-use winit::event::{DeviceEvent, Event, WindowEvent};
+use winit::event::{DeviceEvent, ElementState, Event, MouseButton, WindowEvent};
 use winit::event_loop::ControlFlow;
 use winit::window::{Fullscreen, WindowBuilder};
 use crate::maths::matrix::{Mat4, Matrix};
@@ -55,23 +56,32 @@ fn main() {
         
         let mut all = Vec::new();
         
-        all.push(scene.spawn_object(&model, o1));
+        all.push(scene.spawn_object(&model, o1, 0));
         
         //stress test: got >144 fps with ~53k (230*230) instance of "42" rotating on my gtx1070 (uncaped with a single object i get ~2000 fps)
         //>144 fps with 900 (30*30) "dragon" rotating (uses a lot more vertices/calculations, pretty sure there might be 50* more vertices in dragon than in 42)
-        for i in 0..230 {
-            for j in 0..230 {
-                all.push(scene.spawn_object(&model, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32));
+        for i in 0..330 {
+            for j in 0..330 {
+                all.push(scene.spawn_object(&model, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32, 0));
             }
         }
         
-        scene.set_camera(Transform::from_look_at(Vec3::Z * 100., Vec3::default()));
+        scene.set_camera(Transform::from_look_at(Vec3::Z * 10., Vec3::default()));
         scene.set_projection(80., 16./9.);
         
         safe_calls::set_clear_color(0., 0.5, 0.2);
         safe_calls::set_depth_test(true);
         safe_calls::set_cull_face(true);
 
+        let mut count = 0;
+        let mut once = true;
+        
+        let mut mouse_pos = PhysicalPosition {
+            x: 0.,
+            y: 0.,
+        };
+        let mut process_picking = false;
+        
         event_loop.run(move |event, _target, control_flow| {
                 match event {
                     Event::WindowEvent {
@@ -80,16 +90,41 @@ fn main() {
                         if event == WindowEvent::CloseRequested {
                             *control_flow = ControlFlow::Exit
                         }
+                        if let WindowEvent::CursorMoved { device_id, position, modifiers } = event {
+                            mouse_pos = position;
+                        }
+                        if let WindowEvent::MouseInput { device_id, state, button, modifiers } = event {
+                            if state == ElementState::Pressed && button == MouseButton::Left {
+                                process_picking = true;
+                            }
+                        }
                     }
                     Event::MainEventsCleared => {
+                        if count < 500 {
+                            count += 1;
+                            if count == 499 {
+                                for p in &all[100..] {
+                                    scene.despawn_object(p.clone_weak());
+                                }
+                                all = all[0..100].to_vec();
+                            }
+                        }
                         for h in &mut all {
-                            // let mut t = scene.get_object(*h).unwrap();
-                            // t.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
-                            // scene.set_object(*h, t);
                             h.get_mut().unwrap().transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
                         }
+                        if process_picking {
+                            process_picking = false;
+                            let mut t = scene.pick(mouse_pos.x as usize, (safe_calls::get_size().1 as f64 - mouse_pos.y) as usize);
+                            if let Some(t) = t.get_mut() {
+                                // t.transform.rotate_absolute(Vec3::X, 90f32.to_radians());
+                                if t.flags == 0 {
+                                    t.flags = 3;
+                                } else {
+                                    t.flags = 0;
+                                }
+                            }
+                        }
                         safe_calls::clear_screen();
-                        // obj.draw_instances(2);
                         scene.draw();
                         window.refresh();
                     }

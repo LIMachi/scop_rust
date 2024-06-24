@@ -65,7 +65,7 @@ impl <T> PartialEq for InnerRc<T> {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Handle<T> {
     id: usize,
     rc: InnerRc<(bool, T)>
@@ -74,15 +74,11 @@ pub struct Handle<T> {
 impl <T> Eq for Handle<T> {}
 
 impl <T> PartialEq for Handle<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
+    fn eq(&self, other: &Self) -> bool { self.id == other.id }
 }
 
 impl <T> Hash for Handle<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_usize(self.id);
-    }
+    fn hash<H: Hasher>(&self, state: &mut H) { state.write_usize(self.id); }
 }
 
 impl <T> Handle<T> {
@@ -147,4 +143,6 @@ impl <T> Handle<T> {
             false
         }
     }
+    
+    pub fn id(&self) -> usize { self.id }
 }
