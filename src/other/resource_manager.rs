@@ -5,18 +5,18 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 use crate::opengl::objectv2::MultiPartModel;
-use crate::other::handles::Handle;
 use crate::parser::{ParsedMaterialLib, ParsedObject, ParsedTexture};
 
 #[derive(Default, Debug)]
 pub struct ResourceManager {
     hints: Vec<String>,
-    map: HashMap<String, String>,
-    objects: HashMap<String, Handle<ParsedObject>>,
-    materials: HashMap<String, Handle<ParsedMaterialLib>>,
-    textures: HashMap<String, Handle<ParsedTexture>>,
-    texts: HashMap<String, Handle<String>>,
-    models: HashMap<String, Handle<MultiPartModel>>,
+    next_id: usize,
+    map: HashMap<String, (String, usize)>,
+    objects: HashMap<usize, ParsedObject>,
+    materials: HashMap<usize, ParsedMaterialLib>,
+    textures: HashMap<usize, ParsedTexture>,
+    texts: HashMap<usize, String>,
+    models: HashMap<usize, MultiPartModel>,
 }
 
 impl ResourceManager {
@@ -30,7 +30,7 @@ impl ResourceManager {
         }));
     }
 
-    fn insert_map(&mut self, key: &String, mut path: PathBuf) -> Option<String> {
+    fn insert_map(&mut self, key: &String, mut path: PathBuf) -> Option<(String, usize)> {
         if path.is_dir() || !path.exists() {
             return None;
         }
@@ -38,16 +38,17 @@ impl ResourceManager {
             path = env::current_dir().ok()?.join(path);
         }
         let value = path.to_str()?.to_string();
-        self.map.insert(key.clone(), value.clone());
+        self.map.insert(key.clone(), (value.clone(), self.next_id));
+        self.next_id += 1;
         if let Some(hint) = path.parent().and_then(|p| p.to_str()).map(|s| s.to_string()) {
             if hint != "" && !self.hints.contains(&hint) {
                 self.hints.insert(0, hint);
             }
         }
-        Some(value)
+        Some((value, self.next_id - 1))
     }
 
-    pub fn resolve_full_path<S: Into<String>>(&mut self, key: S, extensions: &[&str]) -> Option<String> {
+    pub fn resolve_full_path<S: Into<String>>(&mut self, key: S, extensions: &[&str]) -> Option<(String, usize)> {
         let name = key.into();
         if !self.map.contains_key(&name) {
             for ext in extensions {
@@ -72,97 +73,138 @@ impl ResourceManager {
         }
         self.map.get(&name).cloned()
     }
-
-    pub fn load_object<S: Into<String>>(&mut self, key: S) -> Handle<ParsedObject> {
-        if let Some(p) = self.resolve_full_path(key, &["obj"]) {
-            if !self.objects.contains_key(&p) {
+    
+    pub fn load_object<S: Into<String>>(&mut self, key: S) -> Option<(usize, &ParsedObject)> {
+        if let Some((p, id)) = self.resolve_full_path(key, &["obj"]) {
+            if !self.objects.contains_key(&id) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(object) = ParsedObject::parse(self, file) {
-                        self.objects.insert(p.clone(), Handle::new_strong(object));
+                        self.objects.insert(id, object);
                     }
                 }
             }
-            self.objects.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
+            self.objects.get(&id).map(|v| (id, v))
         } else {
-            Handle::EMPTY
+            None
         }
     }
+    
+    pub fn get_object(&self, id: usize) -> Option<&ParsedObject> {
+        self.objects.get(&id)
+    }
+    
+    pub fn get_object_mut(&mut self, id: usize) -> Option<&mut ParsedObject> {
+        self.objects.get_mut(&id)
+    }
 
-    pub fn load_material_lib<S: Into<String>>(&mut self, key: S) -> Handle<ParsedMaterialLib> {
-        if let Some(p) = self.resolve_full_path(key, &["mtl"]) {
-            if !self.materials.contains_key(&p) {
+    pub fn load_material_lib<S: Into<String>>(&mut self, key: S) -> Option<(usize, &ParsedMaterialLib)> {
+        if let Some((p, id)) = self.resolve_full_path(key, &["mtl"]) {
+            if !self.materials.contains_key(&id) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(material) = ParsedMaterialLib::parse(self, file) {
-                        self.materials.insert(p.clone(), Handle::new_strong(material));
+                        self.materials.insert(id, material);
                     }
                 }
             }
-            self.materials.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
+            self.materials.get(&id).map(|v| (id, v))
         } else {
-            Handle::EMPTY
+            None
         }
     }
 
-    pub fn load_texture<S: Into<String>>(&mut self, key: S) -> Handle<ParsedTexture> {
-        if let Some(p) = self.resolve_full_path(key, &["bmp"]) {
-            if !self.textures.contains_key(&p) {
+    pub fn get_material_lib(&self, id: usize) -> Option<&ParsedMaterialLib> {
+        self.materials.get(&id)
+    }
+
+    pub fn get_material_lib_mut(&mut self, id: usize) -> Option<&mut ParsedMaterialLib> {
+        self.materials.get_mut(&id)
+    }
+
+    pub fn load_texture<S: Into<String>>(&mut self, key: S) -> Option<(usize, &ParsedTexture)> {
+        if let Some((p, id)) = self.resolve_full_path(key, &["bmp"]) {
+            if !self.textures.contains_key(&id) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(texture) = ParsedTexture::parse(file) {
-                        self.textures.insert(p.clone(), Handle::new_strong(texture));
+                        self.textures.insert(id, texture);
                     }
                 }
             }
-            self.textures.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
+            self.textures.get(&id).map(|v| (id, v))
         } else {
-            Handle::EMPTY
+            None
         }
     }
 
-    pub fn load_text<S: Into<String>>(&mut self, key: S) -> Handle<String> {
-        if let Some(p) = self.resolve_full_path(key, &["txt", "frag", "vert", "geom"]) {
-            if !self.texts.contains_key(&p) {
+    pub fn get_texture(&self, id: usize) -> Option<&ParsedTexture> {
+        self.textures.get(&id)
+    }
+
+    pub fn get_texture_mut(&mut self, id: usize) -> Option<&mut ParsedTexture> {
+        self.textures.get_mut(&id)
+    }
+
+    pub fn load_text<S: Into<String>>(&mut self, key: S) -> Option<(usize, &String)> {
+        if let Some((p, id)) = self.resolve_full_path(key, &["txt", "frag", "vert", "geom"]) {
+            if !self.texts.contains_key(&id) {
                 if let Ok(mut file) = File::open(&p) {
                     let mut text = String::new();
-                    if file.read_to_string(&mut text).is_err() {
-                        return Handle::EMPTY;
-                    }
-                    self.texts.insert(p.clone(), Handle::new_strong(text));
+                    file.read_to_string(&mut text).ok()?;
+                    self.texts.insert(id, text);
                 }
             }
-            self.texts.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
+            self.texts.get(&id).map(|v| (id, v))
         } else {
-            Handle::EMPTY
+            None
         }
+    }
+
+    pub fn get_text(&self, id: usize) -> Option<&String> {
+        self.texts.get(&id)
+    }
+
+    pub fn get_text_mut(&mut self, id: usize) -> Option<&mut String> {
+        self.texts.get_mut(&id)
     }
     
     //instead of returning a parsed object file, it will actively try to create an instance of model (loading materials and textures and creating gpu buffers if needed)
-    pub fn load_multipart_model<S: Into<String>>(&mut self, key: S) -> Handle<MultiPartModel> {
+    pub fn load_multipart_model<S: Into<String>>(&mut self, key: S) -> Option<(usize, &MultiPartModel)> {
         let key = key.into();
-        dbg!(&key);
-        if let Some(p) = self.resolve_full_path(&key, &["obj"]) {
-            dbg!(&p);
-            if !self.models.contains_key(&p) {
-                let obj = self.load_object(key);
-                dbg!(&obj);
-                if obj.present() {
+        if let Some((p, id)) = self.resolve_full_path(&key, &["obj"]) {
+            if !self.models.contains_key(&id) {
+                if let Some(obj) = self.load_object(key).map(|(id, v)| v.clone()) {
                     let model = MultiPartModel::new(self, &obj);
-                    // dbg!(&model);
-                    self.models.insert(p.clone(), Handle::new_strong(model));
+                    self.models.insert(id, model);
                 }
             }
-            self.models.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
+            self.models.get(&id).map(|v| (id, v))
         } else {
-            Handle::EMPTY
+            None
         }
+    }
+
+    pub fn get_multipart_model(&self, id: usize) -> Option<&MultiPartModel> {
+        self.models.get(&id)
+    }
+
+    pub fn get_multipart_model_mut(&mut self, id: usize) -> Option<&mut MultiPartModel> {
+        self.models.get_mut(&id)
     }
     
     pub fn unload_key<S: Into<String>>(&mut self, key: S) {
-        if let Some(p) = self.resolve_full_path(key, &["obj", "mtl", "bmp", "txt", "frag", "vert", "geom"]) {
-            self.objects.remove(&p);
-            self.materials.remove(&p);
-            self.textures.remove(&p);
-            self.texts.remove(&p);
-            self.models.remove(&p);
+        if let Some((_, id)) = self.resolve_full_path(key, &["obj", "mtl", "bmp", "txt", "frag", "vert", "geom"]) {
+            self.objects.remove(&id);
+            self.materials.remove(&id);
+            self.textures.remove(&id);
+            self.texts.remove(&id);
+            self.models.remove(&id);
         }
+    }
+    
+    pub fn unload_id(&mut self, id: usize) {
+        self.objects.remove(&id);
+        self.materials.remove(&id);
+        self.textures.remove(&id);
+        self.texts.remove(&id);
+        self.models.remove(&id);
     }
 }

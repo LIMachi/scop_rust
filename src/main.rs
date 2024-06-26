@@ -16,7 +16,7 @@ use crate::opengl::enums::{RenderMode, Shaders, Side};
 use crate::opengl::object::Model;
 use crate::opengl::objectv2::MultiPartModel;
 use crate::opengl::safe_calls;
-use crate::opengl::scenev2::Scene;
+use crate::opengl::scenev2::{ObjectChange, Scene};
 use crate::opengl::shader::{Drawable, ShaderProgram, ShaderProgramBuilder};
 use crate::other::inputs::Inputs;
 use crate::other::resource_manager::ResourceManager;
@@ -52,15 +52,17 @@ fn main() {
 
         let mut scene = Scene::new(program);
 
-        let model = resources.load_multipart_model("cube");
+        let (id, _) = resources.load_multipart_model("42").unwrap();
 
-        scene.spawn_object(&model, o1, 4);
+        scene.spawn_object(id, o1, 0);
+        // scene.spawn_object(id, o2, 0);
+        // scene.spawn_object(id, Transform::from_look_at(Vec3::Y * 3., Vec3::Z), 0);
         
-        //stress test: got >144 fps with ~70k (265*265) instance of "42" rotating on my gtx1070 (uncaped with a single object i get ~2000 fps)
-        //>144 fps with 900 (30*30) "dragon" rotating (uses a lot more vertices/calculations, pretty sure there might be 50* more vertices in dragon than in 42)
-        // for i in 0..265 {
-        //     for j in 0..265 {
-        //         scene.spawn_object(&model, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32, 4);
+        //stress test: got >144 fps with ~109k (330*330) instance of "42" rotating on my gtx1070 (uncaped with a single object i get 2000~2300 fps)
+        //>144 fps with 900 (30*30) "dragon" rotating
+        // for i in 0..330 {
+        //     for j in 0..330 {
+        //         scene.spawn_object(id, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32, 4);
         //     }
         // }
         
@@ -101,49 +103,49 @@ fn main() {
                             }
                         }
                         if let WindowEvent::DroppedFile(path) = event {
-                            //try to load the file as an object at origin?
-                            let t = resources.load_multipart_model(path.to_str().unwrap());
-                            if t.present() {
-                                scene.spawn_object(&t, Transform::default(), 4);
+                            if let Some((id, _)) = resources.load_multipart_model(path.to_str().unwrap()) {
+                                scene.spawn_object(id, Transform::default(), 4);
                             }
                         }
                     }
                     Event::MainEventsCleared => {
-                        let elapsed = timer.elapsed();
-                        if elapsed.as_secs_f64() >= 1. / 60. {
-                            timer = std::time::Instant::now();
-                            frames += 1;
-                            if frames >= 144 {
-                                frames = 0;
-                            }
-                            if frames == 0 {
-                                scene.debug();
-                            }
-                            for h in scene.iter_instances_mut() {
-                                if h.get::<i32>() & 4 == 4 {
-                                    h.get_mut::<Transform>().rotate_absolute(Vec3::Y, 0.1f32.to_radians());
+                        // let elapsed = timer.elapsed();
+                        // if elapsed.as_secs_f64() >= 1. / 60. {
+                        //     timer = std::time::Instant::now();
+                        //     frames += 1;
+                        //     if frames >= 144 {
+                        //         frames = 0;
+                        //     }
+                        //     if frames == 0 {
+                        //         // scene.debug();
+                        //     }
+                            scene.run_on_instances(|id, mut data| {
+                                if data.flags & 4 == 4 {
+                                    data.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
+                                    ObjectChange::Transform(data.transform)
+                                } else {
+                                    ObjectChange::None
                                 }
-                            }
+                            });
                             if process_picking || destroy_picking {
                                 process_picking = false;
-                                let mut t = scene.pick(mouse_pos.x as usize, (safe_calls::get_size().1 as f64 - mouse_pos.y) as usize);
-                                if t.present() {
-                                    if destroy_picking {
-                                        scene.despawn_object(t);
-                                    } else {
-                                        if t.get::<i32>() & 4 == 0 {
-                                            *t.get_mut::<i32>() |= 4;
+                                if let Some(t) = scene.pick(&resources, mouse_pos.x as usize, (safe_calls::get_size().1 as f64 - mouse_pos.y) as usize) {
+                                    scene.run_on_instance(t, |_, data| {
+                                        if destroy_picking {
+                                            ObjectChange::Remove
+                                        } else if data.flags & 4 == 0 {
+                                            ObjectChange::Flags(data.flags | 4)
                                         } else {
-                                            *t.get_mut::<i32>() &= !4;
+                                            ObjectChange::Flags(data.flags & !4)
                                         }
-                                    }
+                                    });
                                 }
                                 destroy_picking = false;
                             }
                             safe_calls::clear_screen();
-                            scene.draw();
+                            scene.draw(&resources);
                             window.refresh();
-                        }
+                        // }
                     }
                     _ => {}
                 }

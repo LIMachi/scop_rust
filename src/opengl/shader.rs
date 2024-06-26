@@ -17,10 +17,9 @@ pub struct ShaderProgram {
 impl ShaderProgram {
     pub fn from_resources(resources: &mut ResourceManager, name: &str) -> Option<Self> {
         let mut builder = ShaderProgramBuilder::default();
-        builder.add_shader(Shaders::Vertex, resources.load_text(format!("{name}.vert")).as_str());
-        builder.add_shader(Shaders::Fragment, resources.load_text(format!("{name}.frag")).as_str());
-        let geo = resources.load_text(format!("{name}.geom"));
-        if geo.present() {
+        builder.add_shader(Shaders::Vertex, resources.load_text(format!("{name}.vert")).map(|(_, v)| v)?.as_str());
+        builder.add_shader(Shaders::Fragment, resources.load_text(format!("{name}.frag")).map(|(_, v)| v)?.as_str());
+        if let Some((_, geo)) = resources.load_text(format!("{name}.geom")){
             builder.add_shader(Shaders::Geometry, geo.as_str());
         }
         builder.build()

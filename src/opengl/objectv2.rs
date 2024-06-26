@@ -134,7 +134,7 @@ impl MultiPartModel {
                     } else {
                         let t = out.textures.len();
                         texture_map.insert(pt.clone(), t);
-                        let pt = resource_manager.load_texture(pt);
+                        let (_, pt) = resource_manager.load_texture(pt).unwrap();
                         out.textures.push(Texture {
                             name: 0,
                             width: pt.width,

@@ -146,15 +146,16 @@ impl Scene {
     }
     
     pub fn load_model<S: Into<String>>(&mut self, resources: &mut ResourceManager, name: S) -> usize {
-        let po = resources.load_object(name);
-        if po.present() {
-            let mut model = Model::new(resources, &po);
-            model.bake(&self.objects_program);
-            self.models.push(model);
-            self.models.len()
-        } else {
-            0
-        }
+        // let po = resources.load_object(name);
+        // if po.present() {
+        //     let mut model = Model::new(resources, &po);
+        //     model.bake(&self.objects_program);
+        //     self.models.push(model);
+        //     self.models.len()
+        // } else {
+        //     0
+        // }
+        0
     }
     
     pub fn spawn_object(&mut self, model: usize, transform: Transform) -> usize {
