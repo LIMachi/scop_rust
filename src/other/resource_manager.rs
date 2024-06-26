@@ -4,6 +4,7 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use crate::opengl::objectv2::MultiPartModel;
 use crate::other::handles::Handle;
 use crate::parser::{ParsedMaterialLib, ParsedObject, ParsedTexture};
 
@@ -14,7 +15,8 @@ pub struct ResourceManager {
     objects: HashMap<String, Handle<ParsedObject>>,
     materials: HashMap<String, Handle<ParsedMaterialLib>>,
     textures: HashMap<String, Handle<ParsedTexture>>,
-    texts: HashMap<String, Handle<String>>
+    texts: HashMap<String, Handle<String>>,
+    models: HashMap<String, Handle<MultiPartModel>>,
 }
 
 impl ResourceManager {
@@ -117,7 +119,7 @@ impl ResourceManager {
     }
 
     pub fn load_text<S: Into<String>>(&mut self, key: S) -> Handle<String> {
-        if let Some(p) = self.resolve_full_path(key, &["txt", "frag", "vert"]) {
+        if let Some(p) = self.resolve_full_path(key, &["txt", "frag", "vert", "geom"]) {
             if !self.texts.contains_key(&p) {
                 if let Ok(mut file) = File::open(&p) {
                     let mut text = String::new();
@@ -130,6 +132,37 @@ impl ResourceManager {
             self.texts.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
         } else {
             Handle::EMPTY
+        }
+    }
+    
+    //instead of returning a parsed object file, it will actively try to create an instance of model (loading materials and textures and creating gpu buffers if needed)
+    pub fn load_multipart_model<S: Into<String>>(&mut self, key: S) -> Handle<MultiPartModel> {
+        let key = key.into();
+        dbg!(&key);
+        if let Some(p) = self.resolve_full_path(&key, &["obj"]) {
+            dbg!(&p);
+            if !self.models.contains_key(&p) {
+                let obj = self.load_object(key);
+                dbg!(&obj);
+                if obj.present() {
+                    let model = MultiPartModel::new(self, &obj);
+                    // dbg!(&model);
+                    self.models.insert(p.clone(), Handle::new_strong(model));
+                }
+            }
+            self.models.get(&p).unwrap_or(&Handle::EMPTY).clone_weak()
+        } else {
+            Handle::EMPTY
+        }
+    }
+    
+    pub fn unload_key<S: Into<String>>(&mut self, key: S) {
+        if let Some(p) = self.resolve_full_path(key, &["obj", "mtl", "bmp", "txt", "frag", "vert", "geom"]) {
+            self.objects.remove(&p);
+            self.materials.remove(&p);
+            self.textures.remove(&p);
+            self.texts.remove(&p);
+            self.models.remove(&p);
         }
     }
 }

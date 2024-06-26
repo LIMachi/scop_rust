@@ -56,7 +56,7 @@ impl ParsedMaterialLib {
                     }
                     "map_Ns" | "map_d" | "map_Ka" | "map_Kd" | "map_Ks" | "map_Ke" | "map_bump" | "bump" | "disp" | "decal" if columns.len() == 2 => {
                         let tex = columns[1].to_string();
-                        resources.load_texture(&tex).get()?; //file not found
+                        resources.load_texture(&tex);
                         match columns[0] {
                             "map_Ns" => material.specular_exponent_map = tex,
                             "map_d" => material.transparency_map = tex,

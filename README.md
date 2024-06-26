@@ -39,6 +39,7 @@ Bonuses:
 - [x] instancing
 - [ ] lights
 - [ ] shadows
+- [x] picking
 
 Testing (currently disable for rework):
 - Key binds:

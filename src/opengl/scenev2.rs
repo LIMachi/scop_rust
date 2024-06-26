@@ -8,19 +8,52 @@ use crate::opengl::objectv2::MultiPartModel;
 use crate::opengl::safe_calls;
 use crate::opengl::shader::{ShaderProgram, ShaderProgramBuilder};
 use crate::opengl::uniform::Uniform;
-use crate::other::handles::Handle;
-use crate::other::resource_manager::ResourceManager;
+use crate::other::handles::{Get, GetMut, Handle, Set};
 
 #[derive(Debug)]
 pub struct ObjectData {
-    pub model: Handle<MultiPartModel>,
-    pub transform: Transform,
-    pub flags: i32,
+    // scene: Handle<Scene>,
+    model: Handle<MultiPartModel>,
+    transform: Transform,
+    flags: i32,
+}
+
+impl Get<Transform> for ObjectData {
+    fn get(&self) -> &Transform { &self.transform }
+}
+
+impl GetMut<Transform> for ObjectData {
+    fn get_mut(&mut self) -> &mut Transform { &mut self.transform }
+}
+
+impl Get<i32> for ObjectData {
+    fn get(&self) -> &i32 { &self.flags }
+}
+
+impl GetMut<i32> for ObjectData {
+    fn get_mut(&mut self) -> &mut i32 { &mut self.flags }
+}
+
+impl Set<Transform> for ObjectData {
+    fn set(&mut self, value: Transform) { self.transform = value; }
+}
+
+impl Set<i32> for ObjectData {
+    fn set(&mut self, value: i32) { self.flags = value; }
+}
+
+impl Get<Handle<MultiPartModel>> for ObjectData {
+    fn get(&self) -> &Handle<MultiPartModel> { &self.model }
+}
+
+impl GetMut<Handle<MultiPartModel>> for ObjectData {
+    fn get_mut(&mut self) -> &mut Handle<MultiPartModel> { &mut self.model }
 }
 
 impl Clone for ObjectData {
     fn clone(&self) -> Self {
         Self {
+            // scene: self.scene.clone_weak(),
             model: self.model.clone_weak(),
             transform: self.transform,
             flags: self.flags
@@ -28,6 +61,7 @@ impl Clone for ObjectData {
     }
 }
 
+#[derive(Debug)]
 struct PickingHandler {
     shader: ShaderProgram,
     camera_uniform: Uniform,
@@ -52,11 +86,11 @@ impl PickingHandler {
     }
 }
 
+#[derive(Debug)]
 pub struct Scene {
     camera: Transform,
     camera_uniform: Uniform,
     projection_uniform: Uniform,
-    models: Vec<Handle<MultiPartModel>>,
     instances: HashMap<Handle<MultiPartModel>, (Vec<Handle<ObjectData>>, Vec<f32>, Vec<i32>)>,
     instances_uniform: Uniform,
     flags_uniform: Uniform,
@@ -75,7 +109,6 @@ impl Scene {
             camera: Transform::default(),
             camera_uniform: shader.uniform("camera"),
             projection_uniform: shader.uniform("projection"),
-            models: Vec::new(),
             instances: HashMap::new(),
             instances_uniform: shader.uniform("object"),
             flags_uniform: shader.uniform("flags"),
@@ -103,17 +136,6 @@ impl Scene {
     }
     
     pub fn get_camera(&self) -> Transform { self.camera }
-
-    pub fn load_model<S: Into<String>>(&mut self, resources: &mut ResourceManager, name: S) -> Handle<MultiPartModel> {
-        if let Some(po) = resources.load_object(name).get() {
-            let h = Handle::new_strong(MultiPartModel::new(resources, &po));
-            let out = h.clone_weak();
-            self.models.push(h);
-            out
-        } else {
-            Handle::EMPTY
-        }
-    }
     
     pub fn spawn_object(&mut self, model: &Handle<MultiPartModel>, transform: Transform, flags: i32) -> Handle<ObjectData> {
         let (instances, raw_mat, f) = self.instances.entry(model.clone_weak()).or_default();
@@ -130,12 +152,12 @@ impl Scene {
     }
 
     pub fn despawn_object(&mut self, mut object: Handle<ObjectData>) {
-        if let Some(t) = object.get() {
-            if let Some(i) = self.instances.get_mut(&t.model) {
+        if object.present() {
+            object.get_mut::<Handle<MultiPartModel>>().manual_dirty();
+            if let Some(i) = self.instances.get_mut(&object.get()) {
                 i.0.retain(|v| v != &object);
             }
         }
-        object.get_mut().map(|t| t.model.get_mut()); //trick to make model dirty and force rebatching
     }
     
     pub fn pick(&mut self, pixel_x: usize, pixel_y: usize) -> Handle<ObjectData> {
@@ -143,23 +165,23 @@ impl Scene {
         safe_calls::clear_screen();
         self.picking_handler.shader.set_active();
         for (o, i) in self.instances.iter_mut() {
-            if let Some(m) = o.get() {
+            if o.present() {
                 Self::pre_draw(o, i);
                 if i.0.len() < Self::MAX_BATCH_SIZE {
                     self.picking_handler.instances_uniform.raw_array_mat4(&i.1);
-                    self.picking_handler.id_uniform.int(0);
-                    m.draw_instances(i.0.len());
+                    self.picking_handler.id_uniform.int(acc_vec.len() as i32);
+                    o.draw_instances(i.0.len());
                 } else {
                     for batch in 0 .. i.0.len() / Self::MAX_BATCH_SIZE {
                         self.picking_handler.instances_uniform.raw_array_mat4(&i.1[batch * Self::MAX_BATCH_SIZE * 16 .. (batch * Self::MAX_BATCH_SIZE + Self::MAX_BATCH_SIZE) * 16]);
-                        self.picking_handler.id_uniform.int((batch * Self::MAX_BATCH_SIZE) as i32);
-                        m.draw_instances(Self::MAX_BATCH_SIZE);
+                        self.picking_handler.id_uniform.int(acc_vec.len() as i32 + (batch * Self::MAX_BATCH_SIZE) as i32);
+                        o.draw_instances(Self::MAX_BATCH_SIZE);
                     }
                     let ex = i.0.len() % Self::MAX_BATCH_SIZE;
                     if ex > 0 {
                         self.picking_handler.instances_uniform.raw_array_mat4(&i.1[(i.0.len() - ex) * 16 ..]);
-                        self.picking_handler.id_uniform.int(((i.0.len() / Self::MAX_BATCH_SIZE) * Self::MAX_BATCH_SIZE) as i32);
-                        m.draw_instances(ex);
+                        self.picking_handler.id_uniform.int(acc_vec.len() as i32 + ((i.0.len() / Self::MAX_BATCH_SIZE) * Self::MAX_BATCH_SIZE) as i32);
+                        o.draw_instances(ex);
                     }
                 }
                 acc_vec.extend(&i.0);
@@ -181,21 +203,27 @@ impl Scene {
         }
     }
     
-    fn pre_draw(o: &Handle<MultiPartModel>, i: &mut (Vec<Handle<ObjectData>>, Vec<f32>, Vec<i32>)) {
-        if o.dirty() || i.0.iter_mut().any(|h| h.dirty()) {
-            i.1.clear();
-            i.2.clear();
+    fn pre_draw(model: &Handle<MultiPartModel>, group: &mut (Vec<Handle<ObjectData>>, Vec<f32>, Vec<i32>)) {
+        if model.dirty() {
+            group.1.clear();
+            group.2.clear();
             let mut once = true;
-            for t in &mut i.0 {
-                if once {
-                    if let Some(ObjectData { model, .. }) = t.get_mut() {
-                        model.clear_dirty();
+            for t in &mut group.0 {
+                if t.present() {
+                    if once {
+                        once = false;
+                        t.get_mut::<Handle<MultiPartModel>>().clear_dirty();
                     }
+                    t.clear_dirty();
+                    group.1.extend(Vec::<f32>::from(Mat4::from(t.get::<Transform>())));
+                    group.2.push(*t.get::<i32>());
                 }
-                t.clear_dirty();
-                if let Some(ObjectData { transform, flags, .. }) = t.get() {
-                    i.1.extend(Vec::<f32>::from(Mat4::from(*transform)));
-                    i.2.push(*flags);
+            }
+        } else {
+            for (i, t) in group.0.iter_mut().enumerate() {
+                if t.dirty() {
+                    Mat4::from(t.get::<Transform>()).raw_copy(&mut group.1[16 * i .. 16 * i + 16]);
+                    group.2[i] = *t.get::<i32>();
                 }
             }
         }
@@ -203,26 +231,39 @@ impl Scene {
     
     pub fn draw(&mut self) {
         for (o, i) in self.instances.iter_mut() {
-            if let Some(m) = o.get() {
+            if o.present() {
                 Self::pre_draw(o, i);
+                if i.0.len() == 0 {
+                    continue;
+                }
                 if i.0.len() < Self::MAX_BATCH_SIZE {
                     self.instances_uniform.raw_array_mat4(&i.1);
                     self.flags_uniform.array_int(&i.2);
-                    m.draw_instances(i.0.len());
+                    o.draw_instances(i.0.len());
                 } else {
                     for batch in 0 .. i.0.len() / Self::MAX_BATCH_SIZE {
                         self.instances_uniform.raw_array_mat4(&i.1[batch * Self::MAX_BATCH_SIZE * 16 .. (batch * Self::MAX_BATCH_SIZE + Self::MAX_BATCH_SIZE) * 16]);
                         self.flags_uniform.array_int(&i.2[batch * Self::MAX_BATCH_SIZE .. batch * Self::MAX_BATCH_SIZE + Self::MAX_BATCH_SIZE]);
-                        m.draw_instances(Self::MAX_BATCH_SIZE);
+                        o.draw_instances(Self::MAX_BATCH_SIZE);
                     }
                     let ex = i.0.len() % Self::MAX_BATCH_SIZE;
                     if ex > 0 {
                         self.instances_uniform.raw_array_mat4(&i.1[(i.0.len() - ex) * 16 ..]);
                         self.flags_uniform.array_int(&i.2[(i.0.len() - ex) ..]);
-                        m.draw_instances(ex);
+                        o.draw_instances(ex);
                     }
                 }
             }
+        }
+    }
+    
+    pub fn iter_instances_mut(&mut self) -> impl Iterator<Item = &mut Handle<ObjectData>> {
+        self.instances.iter_mut().flat_map(|(_, v)| &mut v.0)
+    }
+    
+    pub fn debug(&self) {
+        for (k, v) in &self.instances {
+            dbg!(k, v.0.len());
         }
     }
 }

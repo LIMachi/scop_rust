@@ -84,7 +84,7 @@ impl MultiPartModel {
                         vertices.push(u[i]);
                     }
                     let n = if vf[2] > 0 && vf[2] <= parsed.normals.len() {
-                        parsed.normals[vf[1] - 1]
+                        parsed.normals[vf[2] - 1]
                     } else {
                         [0., 0., 0.]
                     };
@@ -134,12 +134,12 @@ impl MultiPartModel {
                     } else {
                         let t = out.textures.len();
                         texture_map.insert(pt.clone(), t);
-                        let pt = resource_manager.load_texture(pt).get().unwrap().clone();
+                        let pt = resource_manager.load_texture(pt);
                         out.textures.push(Texture {
                             name: 0,
                             width: pt.width,
                             height: pt.height,
-                            data: pt.data,
+                            data: pt.data.clone(),
                         });
                         t
                     };

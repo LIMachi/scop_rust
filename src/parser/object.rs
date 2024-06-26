@@ -67,7 +67,7 @@ impl ParsedObject {
             if columns.len() >= 2 {
                 match columns[0] {
                     "mtllib" => {
-                        for lib in columns[1..].iter().filter_map(|f| resources.load_material_lib(*f).get().cloned()) {
+                        for lib in columns[1..].iter().map(|f| resources.load_material_lib(*f)) {
                             out.libs.merge(&lib);
                             for name in lib.0.keys() {
                                 if !out.materials.contains(name) {

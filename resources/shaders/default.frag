@@ -25,9 +25,9 @@ void main() {
 	float b = float(face % depth) / scale;
 	vec4 geo_color = vec4(r, r, r, 1.);
 
-	if (f == 1) { //light dot
+	if ((f & 1) == 1) { //light dot
 		output_color = vec4(color, 1);
-	} else if (f == 2) { //debug normals
+	} else if ((f & 2) == 2) { //debug normals
 		output_color = vec4(normal * 0.5 + 0.5, 1);
 	} else { //default renderer
 //		vec3 accumulated_light = vec3(0.07, 0.07, 0.07); //ambient, initial luminance
@@ -39,7 +39,7 @@ void main() {
 		}
 		output_color = (vec4(texture(ambient, uv).rgb, 1) * fade + /*vec4(color, 1)*/geo_color * (1 - fade)) * vec4(min(accumulated_light, 1), 1);
 	}
-	if (f == 3) {
+	if ((f & 4) == 4) {
 		output_color = output_color * 0.5 + vec4(0.5, 0.5, 0., 0.5);
 	}
 }

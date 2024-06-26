@@ -76,6 +76,12 @@ impl From<Transform> for Mat4 {
     }
 }
 
+impl From<&Transform> for Mat4 {
+    fn from(value: &Transform) -> Self {
+        Self::from_pos_rot_scale(&value.pos, &value.rot, &value.scale)
+    }
+}
+
 impl Add<Vec3> for Transform {
     type Output = Transform;
 

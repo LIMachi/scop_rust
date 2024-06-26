@@ -94,12 +94,12 @@ impl Model {
                     } else {
                         let t = out.textures.len();
                         texture_map.insert(pt.clone(), t);
-                        let pt = resources.load_texture(pt).get().unwrap().clone();
+                        let pt = resources.load_texture(pt);
                         out.textures.push(Texture {
                             name: 0,
                             width: pt.width,
                             height: pt.height,
-                            data: pt.data,
+                            data: pt.data.clone(),
                         });
                         t
                     };

@@ -51,20 +51,18 @@ fn main() {
         // let mut obj = Object::new(&mut resources, &obj42);
 
         let mut scene = Scene::new(program);
+
+        let model = resources.load_multipart_model("cube");
+
+        scene.spawn_object(&model, o1, 4);
         
-        let model = scene.load_model(&mut resources, "42");
-        
-        let mut all = Vec::new();
-        
-        all.push(scene.spawn_object(&model, o1, 0));
-        
-        //stress test: got >144 fps with ~53k (230*230) instance of "42" rotating on my gtx1070 (uncaped with a single object i get ~2000 fps)
+        //stress test: got >144 fps with ~70k (265*265) instance of "42" rotating on my gtx1070 (uncaped with a single object i get ~2000 fps)
         //>144 fps with 900 (30*30) "dragon" rotating (uses a lot more vertices/calculations, pretty sure there might be 50* more vertices in dragon than in 42)
-        for i in 0..330 {
-            for j in 0..330 {
-                all.push(scene.spawn_object(&model, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32, 0));
-            }
-        }
+        // for i in 0..265 {
+        //     for j in 0..265 {
+        //         scene.spawn_object(&model, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32, 4);
+        //     }
+        // }
         
         scene.set_camera(Transform::from_look_at(Vec3::Z * 10., Vec3::default()));
         scene.set_projection(80., 16./9.);
@@ -72,15 +70,17 @@ fn main() {
         safe_calls::set_clear_color(0., 0.5, 0.2);
         safe_calls::set_depth_test(true);
         safe_calls::set_cull_face(true);
-
-        let mut count = 0;
-        let mut once = true;
         
         let mut mouse_pos = PhysicalPosition {
             x: 0.,
             y: 0.,
         };
         let mut process_picking = false;
+        let mut destroy_picking = false;
+        
+        let mut frames = 0;
+
+        let mut timer = std::time::Instant::now();
         
         event_loop.run(move |event, _target, control_flow| {
                 match event {
@@ -94,39 +94,56 @@ fn main() {
                             mouse_pos = position;
                         }
                         if let WindowEvent::MouseInput { device_id, state, button, modifiers } = event {
-                            if state == ElementState::Pressed && button == MouseButton::Left {
-                                process_picking = true;
+                            if state == ElementState::Pressed {
+                                destroy_picking = button == MouseButton::Right;
+                                process_picking = button == MouseButton::Left;
+                                
+                            }
+                        }
+                        if let WindowEvent::DroppedFile(path) = event {
+                            //try to load the file as an object at origin?
+                            let t = resources.load_multipart_model(path.to_str().unwrap());
+                            if t.present() {
+                                scene.spawn_object(&t, Transform::default(), 4);
                             }
                         }
                     }
                     Event::MainEventsCleared => {
-                        if count < 500 {
-                            count += 1;
-                            if count == 499 {
-                                for p in &all[100..] {
-                                    scene.despawn_object(p.clone_weak());
-                                }
-                                all = all[0..100].to_vec();
+                        let elapsed = timer.elapsed();
+                        if elapsed.as_secs_f64() >= 1. / 60. {
+                            timer = std::time::Instant::now();
+                            frames += 1;
+                            if frames >= 144 {
+                                frames = 0;
                             }
-                        }
-                        for h in &mut all {
-                            h.get_mut().unwrap().transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
-                        }
-                        if process_picking {
-                            process_picking = false;
-                            let mut t = scene.pick(mouse_pos.x as usize, (safe_calls::get_size().1 as f64 - mouse_pos.y) as usize);
-                            if let Some(t) = t.get_mut() {
-                                // t.transform.rotate_absolute(Vec3::X, 90f32.to_radians());
-                                if t.flags == 0 {
-                                    t.flags = 3;
-                                } else {
-                                    t.flags = 0;
+                            if frames == 0 {
+                                scene.debug();
+                            }
+                            for h in scene.iter_instances_mut() {
+                                if h.get::<i32>() & 4 == 4 {
+                                    h.get_mut::<Transform>().rotate_absolute(Vec3::Y, 0.1f32.to_radians());
                                 }
                             }
+                            if process_picking || destroy_picking {
+                                process_picking = false;
+                                let mut t = scene.pick(mouse_pos.x as usize, (safe_calls::get_size().1 as f64 - mouse_pos.y) as usize);
+                                if t.present() {
+                                    if destroy_picking {
+                                        scene.despawn_object(t);
+                                    } else {
+                                        if t.get::<i32>() & 4 == 0 {
+                                            *t.get_mut::<i32>() |= 4;
+                                        } else {
+                                            *t.get_mut::<i32>() &= !4;
+                                        }
+                                    }
+                                }
+                                destroy_picking = false;
+                            }
+                            safe_calls::clear_screen();
+                            scene.draw();
+                            window.refresh();
                         }
-                        safe_calls::clear_screen();
-                        scene.draw();
-                        window.refresh();
                     }
                     _ => {}
                 }

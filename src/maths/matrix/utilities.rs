@@ -74,3 +74,16 @@ impl <const C: usize, const R: usize, K: Clone> Clone for Matrix<C, R, K> {
 }
 
 impl <const C: usize, const R: usize, K: Copy> Copy for Matrix<C, R, K> {}
+
+impl <const C: usize, const R: usize, K: Copy> Matrix<C, R, K> {
+    pub fn raw_copy(&self, target: &mut [K]) {
+        for c in 0..C {
+            for r in 0..R {
+                if r + c * R >= target.len() {
+                    return;
+                }
+                target[r + c * R] = self.0[r][c];
+            }
+        }
+    }
+}

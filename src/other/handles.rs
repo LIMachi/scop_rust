@@ -1,6 +1,23 @@
 use std::hash::{Hash, Hasher};
+use std::ops::{Deref, DerefMut};
 use std::ptr;
 use std::rc::{Rc, Weak};
+
+pub trait Get<T> {
+    fn get(&self) -> &T;
+}
+
+pub trait GetMut<T> {
+    fn get_mut(&mut self) -> &mut T;
+}
+
+pub trait Set<T> {
+    fn set(&mut self, value: T);
+}
+
+pub trait SetGlobal<T, G> {
+    fn set(&self, global: &mut G, value: T);
+}
 
 #[derive(Clone, Debug, Default)]
 enum InnerRc<T> {
@@ -71,6 +88,20 @@ pub struct Handle<T> {
     rc: InnerRc<(bool, T)>
 }
 
+impl <T> Deref for Handle<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.rc.get().map(|r| &r.1).unwrap()
+    }
+}
+
+impl <T> DerefMut for Handle<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.rc.get_mut().map(|r| { r.0 = true; &mut r.1 }).unwrap()
+    }
+}
+
 impl <T> Eq for Handle<T> {}
 
 impl <T> PartialEq for Handle<T> {
@@ -83,6 +114,21 @@ impl <T> Hash for Handle<T> {
 
 impl <T> Handle<T> {
     pub const EMPTY: Self = Self { id: 0, rc: InnerRc::None };
+
+    pub fn get<V>(&self) -> &V where T: Get<V> {
+        self.rc.get().map(|r| r.1.get()).unwrap()
+    }
+    
+    pub fn get_mut<V>(&mut self) -> &mut V where T: GetMut<V> {
+        self.rc.get_mut().map(|r| {r.0 = true; r.1.get_mut() }).unwrap()
+    }
+
+    pub fn set<V>(&mut self, value: V) where T: Set<V> {
+        if let Some((b, v)) = self.rc.get_mut() {
+            *b = true;
+            v.set(value);
+        }
+    }
 
     pub fn new_strong(data: T) -> Self {
         let rc = Rc::new((false, data));
@@ -118,20 +164,14 @@ impl <T> Handle<T> {
         }
     }
 
-    pub fn present(&self) -> bool {
-        self.rc.present()
-    }
+    pub fn present(&self) -> bool { self.rc.present() }
 
-    pub fn get(&self) -> Option<&T> {
-        self.rc.get().map(|(_, d)| d)
-    }
-
-    pub fn get_mut(&mut self) -> Option<&mut T> {
-        self.rc.get_mut().map(|(m, d)| { *m = true; d })
-    }
-
-    pub fn dirty(&self) -> bool {
-        self.rc.get().map(|(d, _)| *d).unwrap_or(false)
+    pub fn dirty(&self) -> bool { self.rc.get().map(|(d, _)| *d).unwrap_or(false) }
+    
+    pub fn manual_dirty(&mut self) {
+        if let Some((d, _)) = self.rc.get_mut() {
+            *d = true;
+        }
     }
 
     pub fn clear_dirty(&mut self) -> bool {
