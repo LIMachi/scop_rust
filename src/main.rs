@@ -53,10 +53,17 @@ fn main() {
         let mut scene = Scene::new(program);
 
         let (id, _) = resources.load_multipart_model("42").unwrap();
+        // let (t, _) = resources.load_multipart_model("objs/42").unwrap();
+        // let (o, _) = resources.load_multipart_model("cube").unwrap();
+        // let (to, _) = resources.load_multipart_model("dragon").unwrap();
 
+        // dbg!(id, t, o, to);
+        // resources.debug();
+        
         scene.spawn_object(id, o1, 0);
-        // scene.spawn_object(id, o2, 0);
-        // scene.spawn_object(id, Transform::from_look_at(Vec3::Y * 3., Vec3::Z), 0);
+        // scene.spawn_object(t, o2, 0);
+        // scene.spawn_object(o, Transform::from_look_at(Vec3::Y * 2., Vec3::Z), 0);
+        // scene.spawn_object(to, Transform::from_look_at(Vec3::Y * -2., Vec3::Z), 0);
         
         //stress test: got >144 fps with ~109k (330*330) instance of "42" rotating on my gtx1070 (uncaped with a single object i get 2000~2300 fps)
         //>144 fps with 900 (30*30) "dragon" rotating
@@ -109,16 +116,16 @@ fn main() {
                         }
                     }
                     Event::MainEventsCleared => {
-                        // let elapsed = timer.elapsed();
-                        // if elapsed.as_secs_f64() >= 1. / 60. {
-                        //     timer = std::time::Instant::now();
-                        //     frames += 1;
-                        //     if frames >= 144 {
-                        //         frames = 0;
-                        //     }
-                        //     if frames == 0 {
-                        //         // scene.debug();
-                        //     }
+                        let elapsed = timer.elapsed();
+                        if elapsed.as_secs_f64() >= 1. / 60. {
+                            timer = std::time::Instant::now();
+                            frames += 1;
+                            if frames >= 144 {
+                                frames = 0;
+                            }
+                            if frames == 0 {
+                                // scene.debug();
+                            }
                             scene.run_on_instances(|id, mut data| {
                                 if data.flags & 4 == 4 {
                                     data.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
@@ -145,7 +152,7 @@ fn main() {
                             safe_calls::clear_screen();
                             scene.draw(&resources);
                             window.refresh();
-                        // }
+                        }
                     }
                     _ => {}
                 }

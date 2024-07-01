@@ -96,6 +96,7 @@ impl GPUBuffers {
 
     ///internal function used to allocate vbos when needed and mapping them to a location
     fn ensure_vbo(&mut self, index: usize) -> bool {
+        self.bind();
         if !self.vbos.contains_key(&index) {
             let mut t = 0;
             unsafe {
@@ -106,7 +107,6 @@ impl GPUBuffers {
             }
             self.vbos.insert(index, t);
         }
-        self.bind();
         unsafe {
             gl::BindBuffer(gl::ARRAY_BUFFER, *self.vbos.get(&index).unwrap());
         }

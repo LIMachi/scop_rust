@@ -56,13 +56,20 @@ impl MultiPartModel {
             let mut buffers = GPUBuffers::new().unwrap();
             let mut indexes = Vec::new();
             let mut vertices: Vec<f32> = Vec::new();
-            buffers.new_mingled_vbo(0, 0, VertexType::Vec3, 48, 0);
-            buffers.new_mingled_vbo(0, 1, VertexType::Vec3, 48, 12);
-            buffers.new_mingled_vbo(0, 2, VertexType::Vec3, 48, 24);
-            buffers.new_mingled_vbo(0, 3, VertexType::Vec3, 48, 36);
+            let mut colors: Vec<f32> = Vec::new();
+            let mut uvs: Vec<f32> = Vec::new();
+            let mut normals: Vec<f32> = Vec::new();
+            // buffers.new_mingled_vbo(0, 0, VertexType::Vec3, 48, 0);
+            // buffers.new_mingled_vbo(0, 1, VertexType::Vec3, 48, 12);
+            // buffers.new_mingled_vbo(0, 2, VertexType::Vec3, 48, 24);
+            // buffers.new_mingled_vbo(0, 3, VertexType::Vec3, 48, 36);
+            buffers.new_vbo(0, VertexType::Vec3);
+            buffers.new_vbo(1, VertexType::Vec3);
+            buffers.new_vbo(2, VertexType::Vec3);
+            buffers.new_vbo(3, VertexType::Vec3);
             for f in start..=end {
                 let face = &parsed.faces[f];
-                let pf = vertices.len() / 12;
+                let pf = vertices.len() /* / 12 */ / 3;
                 for vf in face {
                     let (v, c) = if vf[0] > 0 && vf[0] <= parsed.vertexes.len() {
                         (parsed.vertexes[vf[0] - 1].pos, parsed.vertexes[vf[0] - 1].color)
@@ -73,7 +80,8 @@ impl MultiPartModel {
                         vertices.push(v[i]);
                     }
                     for i in 0..3 {
-                        vertices.push(c[i]);
+                        // vertices.push(c[i]);
+                        colors.push(c[i]);
                     }
                     let u = if vf[1] > 0 && vf[1] <= parsed.uvs.len() {
                         parsed.uvs[vf[1] - 1]
@@ -81,7 +89,8 @@ impl MultiPartModel {
                         [0., 0., 0.]
                     };
                     for i in 0..3 {
-                        vertices.push(u[i]);
+                        // vertices.push(u[i]);
+                        uvs.push(u[i]);
                     }
                     let n = if vf[2] > 0 && vf[2] <= parsed.normals.len() {
                         parsed.normals[vf[2] - 1]
@@ -89,7 +98,8 @@ impl MultiPartModel {
                         [0., 0., 0.]
                     };
                     for i in 0..3 {
-                        vertices.push(n[i]);
+                        // vertices.push(n[i]);
+                        normals.push(n[i]);
                     }
                 }
                 for step in 0..(face.len() - 2) {
@@ -99,6 +109,9 @@ impl MultiPartModel {
                 }
             }
             buffers.set_vbo(0, vertices);
+            buffers.set_vbo(1, colors);
+            buffers.set_vbo(2, uvs);
+            buffers.set_vbo(3, normals);
             let len = indexes.len();
             buffers.set_ebo(indexes);
             out.parts.push((material, len, buffers));
