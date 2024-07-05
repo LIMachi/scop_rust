@@ -16,10 +16,50 @@ pub struct ObjectId {
     index: usize
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+impl ObjectId {
+    pub fn model(&self) -> usize { self.model }
+}
+
+#[derive(Debug)]
 pub struct ObjectData {
-    pub transform: Transform,
-    pub flags: i32,
+    pub transform: ChangingData<Transform>,
+    pub flags: ChangingData<i32>,
+    pub visible: ChangingData<bool>
+}
+
+#[derive(Debug)]
+pub struct ChangingData<T> {
+    inner: T,
+    changed: bool
+}
+
+impl <T> ChangingData<T> {
+    pub fn new(inner: T) -> Self {
+        Self {
+            inner,
+            changed: false
+        }
+    }
+    
+    pub fn get(&self) -> &T { &self.inner }
+    
+    pub fn get_mut(&mut self) -> &mut T {
+        self.changed = true;
+        &mut self.inner
+    }
+    
+    pub fn is_changed(&self) -> bool { self.changed }
+    
+    pub fn clear_changed(&mut self) { self.changed = false; }
+}
+
+impl <T: PartialEq + Copy> ChangingData<T> {
+    pub fn set(&mut self, value: &T) {
+        if &self.inner != value {
+            self.inner = *value;
+            self.changed = true;
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -65,7 +105,7 @@ pub const MAX_BATCH_SIZE: usize = 128;
 #[derive(Debug)]
 struct Batch { //missing system that merge 2 batches if they have both their len < MAX_BATCH_SIZE / 2
     len: usize, //total amount of entities in this batch (including invisible ones that are not sent to gpu)
-    visible: usize, //total visible entities (real amount of entities to be drawn by the gpu, might be lower than len)
+    visibles: usize, //total visible entities (real amount of entities to be drawn by the gpu, might be lower than len)
     data: [ObjectData; MAX_BATCH_SIZE],
     raw_mat: [f32; MAX_BATCH_SIZE * 16],
     raw_flags: [i32; MAX_BATCH_SIZE]
@@ -75,6 +115,7 @@ struct Batch { //missing system that merge 2 batches if they have both their len
 pub struct Scene {
     camera: Transform,
     camera_uniform: Uniform,
+    projection: Mat4,
     projection_uniform: Uniform,
     instances: HashMap<usize, Vec<Batch>>,
     instances_uniform: Uniform,
@@ -91,6 +132,7 @@ impl Scene {
         Self {
             camera: Transform::default(),
             camera_uniform: shader.uniform("camera"),
+            projection: Mat4::identity(),
             projection_uniform: shader.uniform("projection"),
             instances: HashMap::new(),
             instances_uniform: shader.uniform("object"),
@@ -104,6 +146,7 @@ impl Scene {
     pub fn set_projection(&mut self, fov: f32, aspect_ratio: f32) {
         let proj = Matrix::projection(fov.to_radians(), aspect_ratio, 0.01, 1000.);
         self.projection_uniform.mat4(proj);
+        self.projection = proj;
         self.picking_handler.shader.set_active();
         self.picking_handler.projection_uniform.mat4(proj);
         self.shader.set_active();
@@ -120,18 +163,22 @@ impl Scene {
     
     pub fn get_camera(&self) -> Transform { self.camera }
     
-    pub fn spawn_object(&mut self, model: usize, transform: Transform, flags: i32) -> ObjectId {
+    pub fn get_projection(&self) -> Mat4 { self.projection }
+    
+    /*
+    pub fn spawn_object(&mut self, model: usize, transform: Transform, flags: i32, visible: bool) -> ObjectId {
         let v = self.instances.entry(model).or_default();
-        for (batch, Batch { len, visible, data, raw_mat, raw_flags }) in v.iter_mut().enumerate() {
+        for (batch, Batch { len, visibles, data, raw_mat, raw_flags }) in v.iter_mut().enumerate() {
             if *len < MAX_BATCH_SIZE {
                 data[*len] = ObjectData {
-                    transform,
-                    flags,
+                    transform: ChangingData::new(transform),
+                    flags: ChangingData::new(flags),
+                    visible: ChangingData::new(visible),
                 };
                 Mat4::from(transform).raw_copy(&mut raw_mat[16 * *len .. 16 * *len + 16]);
                 raw_flags[*len] = flags;
                 *len += 1;
-                *visible += 1;
+                *visibles += 1;
                 return ObjectId {
                     model,
                     batch,
@@ -150,7 +197,7 @@ impl Scene {
         raw_flags[0] = flags;
         v.push(Batch {
             len: 1,
-            visible: 1,
+            visibles: 1,
             data,
             raw_mat,
             raw_flags,
@@ -161,6 +208,7 @@ impl Scene {
             index: 0
         }
     }
+    */
     
     pub fn pick(&mut self, resources: &ResourceManager, pixel_x: usize, pixel_y: usize) -> Option<ObjectId> {
         let mut acc_vec = Vec::new();
@@ -168,7 +216,7 @@ impl Scene {
         self.picking_handler.shader.set_active();
         for (model, batches) in self.instances.iter_mut() {
             if let Some(mpm) = resources.get_multipart_model(*model) {
-                for (batch, Batch { len, visible, data, raw_mat, raw_flags }) in batches.iter_mut().enumerate() {
+                for (batch, Batch { len, visibles: visible, data, raw_mat, raw_flags }) in batches.iter_mut().enumerate() {
                     self.picking_handler.instances_uniform.raw_array_mat4(&raw_mat[0..*len * 16]);
                     self.picking_handler.id_uniform.int(acc_vec.len() as i32);
                     mpm.draw_instances(*len);
@@ -201,7 +249,7 @@ impl Scene {
     pub fn draw(&mut self, resources: &ResourceManager) {
         for (model, batches) in self.instances.iter_mut() {
             if let Some(mpm) = resources.get_multipart_model(*model) {
-                for Batch { len, visible, data, raw_mat, raw_flags } in batches {
+                for Batch { len, visibles: visible, data, raw_mat, raw_flags } in batches {
                     self.instances_uniform.raw_array_mat4(&raw_mat[0..*visible * 16]);
                     self.flags_uniform.array_int(&raw_flags[0..*visible]);
                     mpm.draw_instances(*visible);
@@ -212,6 +260,7 @@ impl Scene {
     
     //return true: object changed place (visibility change) or was removed
     //len of batch should be queried again, and iteration should go over this id again
+    /*
     fn do_run<F: FnMut(ObjectId, ObjectData) -> ObjectChange>(id: ObjectId, batch: &mut Batch, runner: &mut F) -> u8 {
         match runner(id, batch.data[id.index]) {
             ObjectChange::None => 0,
@@ -255,9 +304,11 @@ impl Scene {
             }
         }
     }
+    */
     
     //seems bugged for now, need to rethink how i did this
     //intelligently reorganize data to remove multiple object from the batch at once
+    /*
     fn batch_remove(batch: &mut Batch, remove: [bool; MAX_BATCH_SIZE]) {
         let mut offset = 0;
         for i in 0..batch.len {
@@ -270,14 +321,16 @@ impl Scene {
             }
             if remove[i] {
                 offset += 1;
-                if i < batch.visible {
-                    batch.visible -= 1;
+                if i < batch.visibles {
+                    batch.visibles -= 1;
                 }
             }
         }
         batch.len -= offset;
     }
+    */
     
+    /*
     pub fn run_on_instance<F: FnMut(ObjectId, ObjectData) -> ObjectChange>(&mut self, id: ObjectId, mut runner: F) {
         if let Some(batches) = self.instances.get_mut(&id.model) {
             if let Some(batch) = batches.get_mut(id.batch) {
@@ -291,7 +344,9 @@ impl Scene {
             }
         }
     }
-
+    */
+    
+    /*
     pub fn run_on_instances<F: FnMut(ObjectId, ObjectData) -> ObjectChange>(&mut self, mut runner: F) {
         for (model, batches) in &mut self.instances {
             for (batch_id, batch) in batches.iter_mut().enumerate() {
@@ -318,4 +373,5 @@ impl Scene {
             }
         }
     }
+    */
 }

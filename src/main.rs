@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::env;
+use std::ffi::c_void;
 use std::mem::{size_of, size_of_val};
 use std::ops::Add;
+use gl::types::GLint;
 use winit::dpi::PhysicalPosition;
 use winit::event;
 use winit::event::{DeviceEvent, ElementState, Event, MouseButton, WindowEvent};
@@ -13,6 +15,7 @@ use crate::maths::transform::Transform;
 use crate::maths::vector::{Vec3, Vector};
 use crate::opengl::buffers::{GPUBuffers, VertexType};
 use crate::opengl::enums::{RenderMode, Shaders, Side};
+use crate::opengl::frustrum::{Frustrum, Volume};
 use crate::opengl::object::Model;
 use crate::opengl::objectv2::MultiPartModel;
 use crate::opengl::safe_calls;
@@ -60,7 +63,7 @@ fn main() {
         // dbg!(id, t, o, to);
         // resources.debug();
         
-        scene.spawn_object(id, o1, 0);
+        // scene.spawn_object(id, o1, 0);
         // scene.spawn_object(t, o2, 0);
         // scene.spawn_object(o, Transform::from_look_at(Vec3::Y * 2., Vec3::Z), 0);
         // scene.spawn_object(to, Transform::from_look_at(Vec3::Y * -2., Vec3::Z), 0);
@@ -90,6 +93,24 @@ fn main() {
         let mut frames = 0;
 
         let mut timer = std::time::Instant::now();
+
+        let mut shadow_map_buffer = 0;
+        let mut shadow_map = 0;
+        unsafe {
+            gl::GenFramebuffers(1, &mut shadow_map_buffer);
+            gl::GenTextures(1, &mut shadow_map);
+            gl::BindTexture(gl::TEXTURE_2D, shadow_map);
+            gl::TexImage2D(gl::TEXTURE_2D, 0, gl::DEPTH_COMPONENT as GLint, 1024, 1024, 0, gl::DEPTH_COMPONENT, gl::FLOAT, 0 as *const c_void);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as GLint);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as GLint);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as GLint);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as GLint);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, shadow_map_buffer);
+            gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, shadow_map, 0);
+            gl::DrawBuffer(gl::NONE);
+            gl::ReadBuffer(gl::NONE);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+        }
         
         event_loop.run(move |event, _target, control_flow| {
                 match event {
@@ -111,7 +132,7 @@ fn main() {
                         }
                         if let WindowEvent::DroppedFile(path) = event {
                             if let Some((id, _)) = resources.load_multipart_model(path.to_str().unwrap()) {
-                                scene.spawn_object(id, Transform::default(), 4);
+                                // scene.spawn_object(id, Transform::default(), 4);
                             }
                         }
                     }
@@ -126,26 +147,26 @@ fn main() {
                             if frames == 0 {
                                 // scene.debug();
                             }
-                            scene.run_on_instances(|id, mut data| {
-                                if data.flags & 4 == 4 {
-                                    data.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
-                                    ObjectChange::Transform(data.transform)
-                                } else {
-                                    ObjectChange::None
-                                }
-                            });
+                            // scene.run_on_instances(|id, mut data| {
+                            //     if data.flags & 4 == 4 {
+                            //         data.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
+                            //         ObjectChange::Transform(data.transform)
+                            //     } else {
+                            //         ObjectChange::None
+                            //     }
+                            // });
                             if process_picking || destroy_picking {
                                 process_picking = false;
                                 if let Some(t) = scene.pick(&resources, mouse_pos.x as usize, (safe_calls::get_size().1 as f64 - mouse_pos.y) as usize) {
-                                    scene.run_on_instance(t, |_, data| {
-                                        if destroy_picking {
-                                            ObjectChange::Remove
-                                        } else if data.flags & 4 == 0 {
-                                            ObjectChange::Flags(data.flags | 4)
-                                        } else {
-                                            ObjectChange::Flags(data.flags & !4)
-                                        }
-                                    });
+                                    // scene.run_on_instance(t, |_, data| {
+                                    //     if destroy_picking {
+                                    //         ObjectChange::Remove
+                                    //     } else if data.flags & 4 == 0 {
+                                    //         ObjectChange::Flags(data.flags | 4)
+                                    //     } else {
+                                    //         ObjectChange::Flags(data.flags & !4)
+                                    //     }
+                                    // });
                                 }
                                 destroy_picking = false;
                             }

@@ -1,5 +1,4 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign};
-use crate::maths::matrix::Matrix;
 use super::Vector;
 
 impl <const S: usize, K> Index<usize> for Vector<S, K> {
@@ -55,6 +54,18 @@ impl <const S: usize, K: Add<Output = K> + Copy> Add<K> for Vector<S, K> {
     }
 }
 
+impl <const S: usize, K: Add<Output = K> + Copy> Add<K> for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn add(mut self, rhs: K) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = self[i] + rhs;
+        }
+        out
+    }
+}
+
 impl <const S: usize, K: Add<Output = K> + Copy> AddAssign<K> for Vector<S, K> {
     fn add_assign(&mut self, rhs: K) {
         *self = *self + rhs;
@@ -69,6 +80,18 @@ impl <const S: usize, K: Sub<Output = K> + Copy> Sub<K> for Vector<S, K> {
             self[i] = self[i] - rhs;
         }
         self
+    }
+}
+
+impl <const S: usize, K: Sub<Output = K> + Copy> Sub<K> for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn sub(mut self, rhs: K) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = self[i] - rhs;
+        }
+        out
     }
 }
 
@@ -89,6 +112,18 @@ impl <const S: usize, K: Neg<Output=K> + Copy> Neg for Vector<S, K> {
     }
 }
 
+impl <const S: usize, K: Neg<Output = K> + Copy> Neg for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn neg(mut self) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = -self[i];
+        }
+        out
+    }
+}
+
 impl <const S: usize, K: Mul<Output = K> + Copy> Mul for Vector<S, K> {
     type Output = Self;
 
@@ -97,6 +132,30 @@ impl <const S: usize, K: Mul<Output = K> + Copy> Mul for Vector<S, K> {
             self[i] = self[i] * rhs[i];
         }
         self
+    }
+}
+
+impl <const S: usize, K: Mul<Output = K> + Copy> Mul for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn mul(mut self, rhs: Self) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = self[i] * rhs[i];
+        }
+        out
+    }
+}
+
+impl <const S: usize, K: Mul<Output = K> + Copy> Mul<K> for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn mul(mut self, rhs: K) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = self[i] * rhs;
+        }
+        out
     }
 }
 
@@ -131,6 +190,30 @@ impl <const S: usize, K: Div<Output = K> + Copy> Div for Vector<S, K> {
             self[i] = self[i] / rhs[i];
         }
         self
+    }
+}
+
+impl <const S: usize, K: Div<Output = K> + Copy> Div for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn div(mut self, rhs: Self) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = self[i] / rhs[i];
+        }
+        out
+    }
+}
+
+impl <const S: usize, K: Div<Output = K> + Copy> Div<K> for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn div(mut self, rhs: K) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = self[i] / rhs;
+        }
+        out
     }
 }
 
@@ -179,6 +262,18 @@ impl <const S: usize, K: Add<Output = K> + Copy> Add for Vector<S, K> {
     }
 }
 
+impl <const S: usize, K: Add<Output = K> + Copy> Add for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = self[i] + rhs[i];
+        }
+        out
+    }
+}
+
 impl <const S: usize, K: Add<Output = K> + Copy> AddAssign for Vector<S, K> {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs;
@@ -193,6 +288,18 @@ impl <const S: usize, K: Sub<Output = K> + Copy> Sub for Vector<S, K> {
             self[i] = self[i] - rhs[i];
         }
         self
+    }
+}
+
+impl <const S: usize, K: Sub<Output = K> + Copy> Sub for &Vector<S, K> {
+    type Output = Vector<S, K>;
+
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        let mut out = *self;
+        for i in 0..S {
+            out[i] = self[i] - rhs[i];
+        }
+        out
     }
 }
 

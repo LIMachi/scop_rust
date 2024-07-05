@@ -15,6 +15,10 @@ impl Vec3 {
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self([x, y, z])
     }
+    
+    pub fn extend(&self, w: f32) -> Vec4 {
+        Vector::<4, f32>::new(self.0[0], self.0[1], self.0[2], w)
+    }
 }
 
 impl Vec4 {

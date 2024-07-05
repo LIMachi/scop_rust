@@ -1,16 +1,27 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use crate::maths::transform::Transform;
+use crate::maths::vector::Vec3;
 use crate::opengl::buffers::{GPUBuffers, VertexType};
+use crate::opengl::frustrum::{Frustrum, Volume};
 use crate::opengl::material::Material;
 use crate::opengl::texture::Texture;
 use crate::other::resource_manager::ResourceManager;
 use crate::parser::ParsedObject;
 
+#[derive(Debug)]
+struct Part {
+    material: usize,
+    len: usize,
+    buffers: GPUBuffers,
+    volume: Volume
+}
+
 #[derive(Default, Debug)]
 pub struct MultiPartModel {
-    pub textures: Vec<Texture>,
-    pub materials: Vec<Material>,
-    pub parts: Vec<(usize, usize, GPUBuffers)>
+    textures: Vec<Texture>,
+    materials: Vec<Material>,
+    parts: Vec<Part>
 }
 
 impl Eq for MultiPartModel {}
@@ -34,12 +45,21 @@ impl Hash for MultiPartModel {
 impl MultiPartModel {
     pub fn from_raw(vertices: Vec<[f32; 3]>, indices: Vec<u32>) -> Self {
         let mut parts = Vec::new();
-        let mut t = GPUBuffers::new().unwrap();
-        t.new_vbo(0, VertexType::Vec3);
-        t.set_vbo(0, vertices);
+        let mut buffers = GPUBuffers::new().unwrap();
+        buffers.new_vbo(0, VertexType::Vec3);
         let len = indices.len();
-        t.set_ebo(indices);
-        parts.push((0, len, t));
+        buffers.set_ebo(indices);
+        let mut volume = Volume::default();
+        for v in &vertices {
+            volume.expand(&Vec3::from(*v));
+        }
+        buffers.set_vbo(0, vertices);
+        parts.push(Part {
+            material: 0,
+            len,
+            buffers,
+            volume,
+        });
         Self {
             textures: Vec::new(),
             materials: Vec::new(),
@@ -59,6 +79,7 @@ impl MultiPartModel {
             let mut colors: Vec<f32> = Vec::new();
             let mut uvs: Vec<f32> = Vec::new();
             let mut normals: Vec<f32> = Vec::new();
+            let mut volume = Volume::default();
             // buffers.new_mingled_vbo(0, 0, VertexType::Vec3, 48, 0);
             // buffers.new_mingled_vbo(0, 1, VertexType::Vec3, 48, 12);
             // buffers.new_mingled_vbo(0, 2, VertexType::Vec3, 48, 24);
@@ -79,6 +100,7 @@ impl MultiPartModel {
                     for i in 0..3 {
                         vertices.push(v[i]);
                     }
+                    volume.expand(&Vec3::from(v));
                     for i in 0..3 {
                         // vertices.push(c[i]);
                         colors.push(c[i]);
@@ -114,7 +136,12 @@ impl MultiPartModel {
             buffers.set_vbo(3, normals);
             let len = indexes.len();
             buffers.set_ebo(indexes);
-            out.parts.push((material, len, buffers));
+            out.parts.push(Part {
+                material,
+                len,
+                buffers,
+                volume,
+            });
         }
         for material in parsed.materials.iter() {
             let p = &parsed.libs.0[material];
@@ -162,22 +189,31 @@ impl MultiPartModel {
         }
         out
     }
+    
+    pub fn visible(&self, transform: &Transform, frustrum: &Frustrum) -> bool {
+        for Part { volume, .. } in &self.parts {
+            if frustrum.has_volume(transform, volume) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     pub fn draw(&self) {
-        for (mat, len, part) in &self.parts {
-            if *mat < self.materials.len() {
-                self.materials[*mat].bind(&self.textures);
+        for Part { material, len, buffers, .. } in &self.parts {
+            if *material < self.materials.len() {
+                self.materials[*material].bind(&self.textures);
             }
-            part.draw(gl::TRIANGLES, 0, *len);
+            buffers.draw(gl::TRIANGLES, 0, *len);
         }
     }
 
     pub fn draw_instances(&self, count: usize) {
-        for (mat, len, part) in &self.parts {
-            if *mat < self.materials.len() {
-                self.materials[*mat].bind(&self.textures);
+        for Part { material, len, buffers, .. } in &self.parts {
+            if *material < self.materials.len() {
+                self.materials[*material].bind(&self.textures);
             }
-            part.draw_instances(gl::TRIANGLES, 0, *len, count);
+            buffers.draw_instances(gl::TRIANGLES, 0, *len, count);
         }
     }
 }

@@ -45,6 +45,16 @@ impl <const S: usize, K: Copy + Default> Vector<S, K> {
         }
         out
     }
+    
+    pub fn resize<const NS: usize>(&self) -> Vector<NS, K> {
+        let mut t = [K::default(); NS];
+        for i in 0..S {
+            if i < NS {
+                t[i] = self.0[i];
+            }
+        }
+        Vector(t)
+    }
 }
 
 impl <const S: usize, K: Root2 + Copy + Default + Unit + PartialEq + Add<Output = K> + Mul<Output = K> + Div<Output = K>> Vector<S, K> {

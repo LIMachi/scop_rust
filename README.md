@@ -10,6 +10,7 @@ References used:
 - rust OpenGL usage (SDL2): https://rust-tutorials.github.io/learn-opengl/basics/001-drawing-a-triangle.html
 - opengl techniques: https://learnopengl.com/Introduction
 - general OpenGL / GLSL usage: https://www.khronos.org/opengl/wiki / https://registry.khronos.org/OpenGL-Refpages/es3/
+- frustrum: https://www8.cs.umu.se/kurser/5DV051/HT12/lab/plane_extraction.pdf
 
 Rust version: `rustc 1.77.2`
 
