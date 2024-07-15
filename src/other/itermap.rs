@@ -68,6 +68,18 @@ impl <K: Eq + Hash + Clone, V> IterMap<K, V> {
     pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         self.map.get(key).map(|i| &mut self.vec[*i].1)
     }
+    
+    pub fn get_mut_or_insert<F: Fn(&K) -> V>(&mut self, key: &K, insert: F) -> &mut V {
+        if let Some(i) = self.map.get(key) {
+            &mut self.vec[*i].1
+        } else {
+            let i = self.vec.len();
+            self.map.insert(key.clone(), i);
+            let value = insert(key);
+            self.vec.push((key.clone(), value));
+            &mut self.vec[i].1
+        }
+    }
 
     ///four times faster than iterating the standard map
     pub fn iter_values(&self) -> impl Iterator<Item = &V> {

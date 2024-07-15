@@ -1,0 +1,20 @@
+new render system/order:
+-give smart pointer to objects on iteration (get rid of this ugly enum system)
+-only check object visibility (frustrum) when the camera or object moves, and are not already manually hidden
+-change storage of uniforms/batch (rebuild the batch from scratch as needed, and store them by visibility groups: ex per camera or per light)
+
+frustrum check order:
+-global sphere: test if item is near enough to even be in frustrum
+-local sphere: test if the bounding sphere of the object is inside the frustrum
+-if the local sphere is not fully inside the frustrum, also check if obb is inside frustrum
+
+add light effects (to show normals)
+move objects/camera individually
+
+new multipart shader format:
+load a maximum of 128 materials in uniforms (materials could also be stored in instanced vbo, and samplers of textures could be stored in a variety of ways)
+load a maximum of 128 lights (directional/spot/point), the same method as for material storage could be used to allow more lights (but the shadow system is already limited so no need to go this far imo)
+- note: the amount of lights and materials might have to be tweaked to prevent uniform overflow
+each vertex has a flat int pointing to the material in use
+instance use vbo instead of uniforms (to store transforms, flags, fade, etc)
+each object kind is a single vao, not a fragmentation per sub part (and only switch the vaos if there is an effective change)

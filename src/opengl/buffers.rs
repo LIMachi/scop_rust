@@ -123,6 +123,17 @@ impl GPUBuffers {
             }
         }
     }
+    
+    pub fn new_instanced_vbo(&mut self, index: usize, kind: VertexType, instance_stride: usize) {
+        if self.ensure_vbo(index) {
+            unsafe {
+                let VertexTypeLayout { count, kind, size } = kind.layout();
+                gl::VertexAttribPointer(index as GLuint, count, kind, gl::FALSE, size, 0 as *const _);
+                gl::EnableVertexAttribArray(index as GLuint);
+                gl::VertexAttribDivisor(index as GLuint, instance_stride as GLuint);
+            }
+        }
+    }
 
     ///create a mingled vertex buffer (meaning: multiple locations will be bound to this single buffer using offsets, as if the data of this buffer was a vector of structs)
     ///ex: we want to use a single buffer to send position (vec3) and uv (vec2), the mingle size will be 20 (5 floats)

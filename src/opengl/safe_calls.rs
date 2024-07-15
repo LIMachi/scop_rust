@@ -41,11 +41,8 @@ pub fn set_draw_mode(side: Side, mode: RenderMode) {
 }
 
 pub fn get_draw_mode() -> (RenderMode, RenderMode) {
-    unsafe {
-        let mut modes = [0 as GLint; 2];
-        gl::GetIntegerv(gl::POLYGON_MODE, &mut modes as *mut GLint);
-        (RenderMode::try_from(modes[0] as GLenum).unwrap(), RenderMode::try_from(modes[1] as GLenum).unwrap())
-    }
+    let modes = get_int_array::<2>(gl::POLYGON_MODE);
+    (RenderMode::try_from(modes[0] as GLenum).unwrap(), RenderMode::try_from(modes[1] as GLenum).unwrap())
 }
 
 pub fn resize(width: u32, height: u32) {
@@ -55,11 +52,8 @@ pub fn resize(width: u32, height: u32) {
 }
 
 pub fn get_size() -> (u32, u32) {
-    let mut v = [0; 4];
-    unsafe {
-        gl::GetIntegerv(gl::VIEWPORT, &mut v[0]);
-    }
-    (v[2] as u32, v[3] as u32)
+    let view = get_int_array::<4>(gl::VIEWPORT);
+    (view[2] as u32, view[3] as u32)
 }
 
 pub fn set_point_size(size: f32) {
@@ -68,10 +62,20 @@ pub fn set_point_size(size: f32) {
     }
 }
 
-pub fn get_vao() -> GLuint {
+pub fn get_vao() -> GLuint { get_int(gl::ARRAY_BUFFER_BINDING) as GLuint }
+
+pub fn get_int(query: GLenum) -> GLint {
     let mut v = 0;
     unsafe {
-        gl::GetIntegerv(gl::ARRAY_BUFFER_BINDING, &mut v);
+        gl::GetIntegerv(query, &mut v);
     }
-    v as GLuint
+    v
+}
+
+pub fn get_int_array<const S: usize>(query: GLenum) -> [GLint; S] {
+    let mut v = [0; S];
+    unsafe {
+        gl::GetIntegerv(query, &mut v[0]);
+    }
+    v
 }

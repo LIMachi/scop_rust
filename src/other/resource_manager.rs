@@ -4,7 +4,9 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-use crate::opengl::objectv2::MultiPartModel;
+use crate::opengl::material::Material;
+use crate::opengl::object::MultiPartModel;
+use crate::opengl::texture::Texture;
 use crate::parser::{ParsedMaterialLib, ParsedObject, ParsedTexture};
 
 #[derive(Default, Debug)]
@@ -14,8 +16,10 @@ pub struct ResourceManager {
     map: HashMap<String, String>,
     ids: HashMap<String, usize>,
     objects: HashMap<usize, ParsedObject>,
-    materials: HashMap<usize, ParsedMaterialLib>,
+    mat_libs: HashMap<usize, ParsedMaterialLib>,
+    material: HashMap<usize, Material>,
     textures: HashMap<usize, ParsedTexture>,
+    maps: HashMap<usize, Texture>,
     texts: HashMap<usize, String>,
     models: HashMap<usize, MultiPartModel>,
 }
@@ -109,25 +113,76 @@ impl ResourceManager {
     pub fn load_material_lib<S: Into<String>>(&mut self, key: S) -> Option<(usize, &ParsedMaterialLib)> {
         if let Some(p) = self.resolve_full_path(key, &["mtl"]) {
             let id = self.resolve_id(&p);
-            if !self.materials.contains_key(&id) {
+            if !self.mat_libs.contains_key(&id) {
                 if let Ok(file) = File::open(&p) {
                     if let Some(material) = ParsedMaterialLib::parse(self, file) {
-                        self.materials.insert(id, material);
+                        self.mat_libs.insert(id, material);
                     }
                 }
             }
-            self.materials.get(&id).map(|v| (id, v))
+            self.mat_libs.get(&id).map(|v| (id, v))
         } else {
             None
         }
     }
 
     pub fn get_material_lib(&self, id: usize) -> Option<&ParsedMaterialLib> {
-        self.materials.get(&id)
+        self.mat_libs.get(&id)
     }
 
     pub fn get_material_lib_mut(&mut self, id: usize) -> Option<&mut ParsedMaterialLib> {
-        self.materials.get_mut(&id)
+        self.mat_libs.get_mut(&id)
+    }
+
+    pub fn load_material<S: Into<String>, M: Into<String>>(&mut self, key: S, mat: M) -> Option<(usize, &Material)> {
+        let mat = mat.into();
+        let key = key.into();
+        let mat_path = format!("{key}:{mat}");
+        if let Some(id) = self.ids.get(&mat_path) {
+            return self.material.get(id).map(|m| (*id, m));
+        }
+        let id = self.next_id;
+        if let Some(m) = self.load_material_lib(key).iter().find_map(|(_, l)| l.0.get(&mat)).cloned() {
+            let ambient_map = self.load_map(m.ambient_map).map(|(id, _)| id).unwrap_or(0);
+            let diffuse_map = self.load_map(m.diffuse_map).map(|(id, _)| id).unwrap_or(0);
+            let transparency_map = self.load_map(m.transparency_map).map(|(id, _)| id).unwrap_or(0);
+            let specular_exponent_map = self.load_map(m.specular_exponent_map).map(|(id, _)| id).unwrap_or(0);
+            let specular_map = self.load_map(m.specular_map).map(|(id, _)| id).unwrap_or(0);
+            let emissive_map = self.load_map(m.emissive_map).map(|(id, _)| id).unwrap_or(0);
+            let bump_map = self.load_map(m.bump_map).map(|(id, _)| id).unwrap_or(0);
+            let displacement_map = self.load_map(m.displacement_map).map(|(id, _)| id).unwrap_or(0);
+            let stencil_map = self.load_map(m.stencil_map).map(|(id, _)| id).unwrap_or(0);
+            self.material.insert(id, Material {
+                specular_exponent: m.specular_exponent,
+                density: m.density,
+                transparency: m.transparency,
+                filter: m.filter,
+                ambient: m.ambient,
+                diffuse: m.diffuse,
+                specular: m.specular,
+                emissive: m.emissive,
+                illum: m.illum,
+                ambient_map,
+                diffuse_map,
+                transparency_map,
+                specular_exponent_map,
+                specular_map,
+                emissive_map,
+                bump_map,
+                displacement_map,
+                stencil_map,
+            });
+            self.next_id += 1;
+        }
+        self.material.get(&id).map(|m| (id, m))
+    }
+
+    pub fn get_material(&self, id: usize) -> Option<&Material> {
+        self.material.get(&id)
+    }
+
+    pub fn get_material_mut(&mut self, id: usize) -> Option<&mut Material> {
+        self.material.get_mut(&id)
     }
 
     pub fn load_texture<S: Into<String>>(&mut self, key: S) -> Option<(usize, &ParsedTexture)> {
@@ -152,6 +207,34 @@ impl ResourceManager {
 
     pub fn get_texture_mut(&mut self, id: usize) -> Option<&mut ParsedTexture> {
         self.textures.get_mut(&id)
+    }
+    
+    pub fn load_map<S: Into<String>>(&mut self, key: S) -> Option<(usize, &Texture)> {
+        let key = key.into();
+        if let Some(p) = self.resolve_full_path(&key, &["bmp"]) {
+            let id = self.resolve_id(&p);
+            if !self.maps.contains_key(&id) {
+                if let Some(map) = self.load_texture(key).map(|(id, v)| Texture {
+                    name: 0,
+                    width: v.width,
+                    height: v.height,
+                    data: v.data.clone()
+                }) {
+                    self.maps.insert(id, map);
+                }
+            }
+            self.maps.get(&id).map(|v| (id, v))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_map(&self, id: usize) -> Option<&Texture> {
+        self.maps.get(&id)
+    }
+
+    pub fn get_map_mut(&mut self, id: usize) -> Option<&mut Texture> {
+        self.maps.get_mut(&id)
     }
 
     pub fn load_text<S: Into<String>>(&mut self, key: S) -> Option<(usize, &String)> {
@@ -207,8 +290,10 @@ impl ResourceManager {
         if let Some(p) = self.resolve_full_path(key, &["obj", "mtl", "bmp", "txt", "frag", "vert", "geom"]) {
             let id = self.resolve_id(&p);
             self.objects.remove(&id);
-            self.materials.remove(&id);
+            self.mat_libs.remove(&id);
+            self.material.remove(&id);
             self.textures.remove(&id);
+            self.maps.remove(&id);
             self.texts.remove(&id);
             self.models.remove(&id);
             self.ids.remove(&p);
@@ -218,8 +303,10 @@ impl ResourceManager {
     
     pub fn unload_id(&mut self, id: usize) {
         self.objects.remove(&id);
-        self.materials.remove(&id);
+        self.mat_libs.remove(&id);
+        self.material.remove(&id);
         self.textures.remove(&id);
+        self.maps.remove(&id);
         self.texts.remove(&id);
         self.models.remove(&id);
         let mut p = "".to_string();

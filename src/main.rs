@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::c_void;
 use std::mem::{size_of, size_of_val};
@@ -16,10 +16,9 @@ use crate::maths::vector::{Vec3, Vector};
 use crate::opengl::buffers::{GPUBuffers, VertexType};
 use crate::opengl::enums::{RenderMode, Shaders, Side};
 use crate::opengl::frustrum::{Frustrum, Volume};
-use crate::opengl::object::Model;
-use crate::opengl::objectv2::MultiPartModel;
+use crate::opengl::object::MultiPartModel;
 use crate::opengl::safe_calls;
-use crate::opengl::scenev2::{ObjectChange, Scene};
+use crate::opengl::scene::{ObjectData, Scene};
 use crate::opengl::shader::{Drawable, ShaderProgram, ShaderProgramBuilder};
 use crate::other::inputs::Inputs;
 use crate::other::resource_manager::ResourceManager;
@@ -38,6 +37,8 @@ fn main() {
         .with_fullscreen(Some(Fullscreen::Borderless(None)))
     ) {
 
+        println!("{}", safe_calls::get_int(gl::MAX_VERTEX_UNIFORM_COMPONENTS));
+        
         let mut resources = ResourceManager::default();
         resources.register_hints(&["resources", "resources/objs", "resources/materials", "resources/textures", "resources/shaders"]);
 
@@ -63,18 +64,18 @@ fn main() {
         // dbg!(id, t, o, to);
         // resources.debug();
         
-        // scene.spawn_object(id, o1, 0);
+        scene.spawn_object(id, ObjectData::from(o1));
         // scene.spawn_object(t, o2, 0);
         // scene.spawn_object(o, Transform::from_look_at(Vec3::Y * 2., Vec3::Z), 0);
         // scene.spawn_object(to, Transform::from_look_at(Vec3::Y * -2., Vec3::Z), 0);
         
         //stress test: got >144 fps with ~109k (330*330) instance of "42" rotating on my gtx1070 (uncaped with a single object i get 2000~2300 fps)
         //>144 fps with 900 (30*30) "dragon" rotating
-        // for i in 0..330 {
-        //     for j in 0..330 {
-        //         scene.spawn_object(id, o2 + Vec3::X * i as f32 + Vec3::Y * j as f32, 4);
-        //     }
-        // }
+        for i in 0..330 {
+            for j in 0..330 {
+                scene.spawn_object(id, ObjectData::from(o2 + Vec3::X * i as f32 + Vec3::Y * j as f32).with_flags(4));
+            }
+        }
         
         scene.set_camera(Transform::from_look_at(Vec3::Z * 10., Vec3::default()));
         scene.set_projection(80., 16./9.);
@@ -90,7 +91,7 @@ fn main() {
         let mut process_picking = false;
         let mut destroy_picking = false;
         
-        let mut frames = 0;
+        let mut frames = -1;
 
         let mut timer = std::time::Instant::now();
 
@@ -112,6 +113,10 @@ fn main() {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
         
+        let uncapped = true;
+        
+        let mut visible_set = HashSet::new();
+        
         event_loop.run(move |event, _target, control_flow| {
                 match event {
                     Event::WindowEvent {
@@ -132,46 +137,55 @@ fn main() {
                         }
                         if let WindowEvent::DroppedFile(path) = event {
                             if let Some((id, _)) = resources.load_multipart_model(path.to_str().unwrap()) {
-                                // scene.spawn_object(id, Transform::default(), 4);
+                                scene.spawn_object(id, ObjectData::from(Transform::default()));
                             }
                         }
                     }
                     Event::MainEventsCleared => {
                         let elapsed = timer.elapsed();
-                        if elapsed.as_secs_f64() >= 1. / 60. {
+                        if uncapped || elapsed.as_secs_f64() >= 1. / 60. {
                             timer = std::time::Instant::now();
+                            if frames == -1 {
+                                let frustrum = Frustrum::from_vp(&(scene.get_projection() * Mat4::from(scene.get_camera())));
+                                scene.run_on_instances(|model, id, data| {
+                                    if resources.get_multipart_model(model).unwrap().visible(&data.transform, &frustrum) {
+                                        visible_set.insert(id);
+                                    }
+                                });
+                                // scene.debug();
+                            }
                             frames += 1;
                             if frames >= 144 {
                                 frames = 0;
                             }
-                            if frames == 0 {
-                                // scene.debug();
-                            }
-                            // scene.run_on_instances(|id, mut data| {
-                            //     if data.flags & 4 == 4 {
-                            //         data.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
-                            //         ObjectChange::Transform(data.transform)
-                            //     } else {
-                            //         ObjectChange::None
-                            //     }
-                            // });
+                            scene.run_on_instances(|model, id, data| {
+                                if data.flags & 4 == 4 {
+                                    data.transform.rotate_absolute(Vec3::Y, 0.1f32.to_radians());
+                                    Mat4::from(data.transform).raw_copy(&mut data.raw_mat);
+                                }
+                            });
                             if process_picking || destroy_picking {
                                 process_picking = false;
-                                if let Some(t) = scene.pick(&resources, mouse_pos.x as usize, (safe_calls::get_size().1 as f64 - mouse_pos.y) as usize) {
-                                    // scene.run_on_instance(t, |_, data| {
-                                    //     if destroy_picking {
-                                    //         ObjectChange::Remove
-                                    //     } else if data.flags & 4 == 0 {
-                                    //         ObjectChange::Flags(data.flags | 4)
-                                    //     } else {
-                                    //         ObjectChange::Flags(data.flags & !4)
-                                    //     }
-                                    // });
+                                if let Some(t) = scene.pick(&resources, mouse_pos.x as usize, (safe_calls::get_size().1 as f64 - mouse_pos.y) as usize, /*Some(&visible_set)*/None) {
+                                    if destroy_picking {
+                                        // scene.despawn_object(t);
+                                        scene.run_on_instance(t, |_, _, data| {
+                                            data.visible ^= true;
+                                        });
+                                    } else {
+                                        scene.run_on_instance(t, |_, _, data| {
+                                            if data.flags & 4 == 0 {
+                                                data.flags |= 4
+                                            } else {
+                                                data.flags &= !4
+                                            }
+                                        });
+                                    }
                                 }
                                 destroy_picking = false;
                             }
                             safe_calls::clear_screen();
-                            scene.draw(&resources);
+                            scene.draw(&resources, /*Some(&visible_set)*/None);
                             window.refresh();
                         }
                     }

@@ -1,4 +1,4 @@
-use crate::maths::matrix::Mat4;
+use crate::maths::matrix::{Mat4, Matrix};
 use crate::maths::quaternion::Quaternion;
 use crate::maths::vector::Vec3;
 
@@ -44,5 +44,15 @@ impl Mat4 {
             [0., 0., 2. / (far - near), 0.],
             [0., 0., 0., 1.],
         ])
+    }
+
+    pub fn raw_array(&self) -> [f32; 16] {
+        let mut out = [0f32; 16];
+        for c in 0..4 {
+            for r in 0..4 {
+                out[r + c * 4] = self.0[r][c];
+            }
+        }
+        out
     }
 }

@@ -29,11 +29,11 @@ impl Volume {
 }
 
 impl Frustrum {
-    pub fn from_mvp(mvp: &Mat4) -> Self {
-        let v = mvp.row(3); //position
+    pub fn from_vp(vp: &Mat4) -> Self {
+        let v = vp.row(3); //position
         let mut out = Self { normals: [Vec3::default(); 6] };
         for i in 0..3 {
-            let r = mvp.row(i);
+            let r = vp.row(i);
             out.normals[i * 2] = (v + r).resize().normalize();
             out.normals[i * 2 + 1] = (v - r).resize().normalize();
         }

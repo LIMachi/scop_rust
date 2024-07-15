@@ -1,67 +1,148 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
-use gl::types::GLuint;
+use std::hash::{Hash, Hasher};
+use crate::maths::transform::Transform;
+use crate::maths::vector::Vec3;
+use crate::opengl::buffers::{GPUBuffers, VertexType};
+use crate::opengl::frustrum::{Frustrum, Volume};
+use crate::opengl::main_shader::MainShader;
 use crate::opengl::material::Material;
-use crate::opengl::part::ObjectPart;
-use crate::opengl::shader::{Drawable, ShaderProgram};
 use crate::opengl::texture::Texture;
 use crate::other::resource_manager::ResourceManager;
 use crate::parser::ParsedObject;
 
 #[derive(Debug)]
-pub struct Model {
-    pub vao: GLuint,
-    pub textures: Vec<Texture>,
-    pub materials: Vec<Material>,
-    pub parts: Vec<ObjectPart>,
-    pub current_part: usize,
-    pub render_flags: i32,
+struct Part {
+    material: usize,
+    len: usize,
+    buffers: GPUBuffers,
+    volume: Volume
 }
 
-impl Default for Model {
-    fn default() -> Self {
-        Self {
-            vao: 0,
-            textures: vec![],
-            materials: vec![],
-            parts: vec![],
-            current_part: 0,
-            render_flags: 0,
-        }
+#[derive(Default, Debug)]
+pub struct MultiPartModel {
+    textures: Vec<Texture>,
+    materials: Vec<Material>,
+    parts: Vec<Part>
+}
+
+impl Eq for MultiPartModel {}
+
+impl PartialEq for MultiPartModel {
+    fn eq(&self, other: &Self) -> bool {
+        self.textures.as_ptr() == other.textures.as_ptr()
+        && self.materials.as_ptr() == other.materials.as_ptr()
+        && self.parts.as_ptr() == other.parts.as_ptr()
     }
 }
 
-impl Model {
-    pub fn new(resources: &mut ResourceManager, parsed: &ParsedObject) -> Self {
-        let mut out = Self::default();
+impl Hash for MultiPartModel {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_usize(self.textures.as_ptr() as usize);
+        state.write_usize(self.materials.as_ptr() as usize);
+        state.write_usize(self.parts.as_ptr() as usize);
+    }
+}
+
+impl MultiPartModel {
+    pub fn from_raw(vertices: Vec<[f32; 3]>, indices: Vec<u32>) -> Self {
+        let mut parts = Vec::new();
+        let mut buffers = GPUBuffers::new().unwrap();
+        buffers.new_vbo(0, VertexType::Vec3);
+        let len = indices.len();
+        buffers.set_ebo(indices);
+        let mut volume = Volume::default();
+        for v in &vertices {
+            volume.expand(&Vec3::from(*v));
+        }
+        buffers.set_vbo(0, vertices);
+        parts.push(Part {
+            material: 0,
+            len,
+            buffers,
+            volume,
+        });
+        Self {
+            textures: Vec::new(),
+            materials: Vec::new(),
+            parts
+        }
+    }
+
+    pub fn new(resource_manager: &mut ResourceManager, parsed: &ParsedObject) -> Self {
+        let mut out  = Self::default();
         let mut texture_map: HashMap<String, usize> = HashMap::new();
         texture_map.insert("".to_string(), 0);
         out.textures.push(Texture::palette());
-        for group in parsed.groups.iter() {
-            let mut part = ObjectPart::default();
-            part.material = group[0];
-            for f in group[1]..=group[2] {
+        for &[material, start, end] in &parsed.groups {
+            let mut buffers = GPUBuffers::new().unwrap();
+            let mut indexes = Vec::new();
+            let mut vertices: Vec<f32> = Vec::new();
+            let mut colors: Vec<f32> = Vec::new();
+            let mut uvs: Vec<f32> = Vec::new();
+            let mut normals: Vec<f32> = Vec::new();
+            let mut volume = Volume::default();
+            // buffers.new_mingled_vbo(0, 0, VertexType::Vec3, 48, 0);
+            // buffers.new_mingled_vbo(0, 1, VertexType::Vec3, 48, 12);
+            // buffers.new_mingled_vbo(0, 2, VertexType::Vec3, 48, 24);
+            // buffers.new_mingled_vbo(0, 3, VertexType::Vec3, 48, 36);
+            buffers.new_vbo(0, VertexType::Vec3);
+            buffers.new_vbo(1, VertexType::Vec3);
+            buffers.new_vbo(2, VertexType::Vec3);
+            buffers.new_vbo(3, VertexType::Vec3);
+            for f in start..=end {
                 let face = &parsed.faces[f];
+                let pf = vertices.len() /* / 12 */ / 3;
+                for vf in face {
+                    let (v, c) = if vf[0] > 0 && vf[0] <= parsed.vertexes.len() {
+                        (parsed.vertexes[vf[0] - 1].pos, parsed.vertexes[vf[0] - 1].color)
+                    } else {
+                        ([0., 0., 0.], [0., 0., 0.])
+                    };
+                    for i in 0..3 {
+                        vertices.push(v[i]);
+                    }
+                    volume.expand(&Vec3::from(v));
+                    for i in 0..3 {
+                        // vertices.push(c[i]);
+                        colors.push(c[i]);
+                    }
+                    let u = if vf[1] > 0 && vf[1] <= parsed.uvs.len() {
+                        parsed.uvs[vf[1] - 1]
+                    } else {
+                        [0., 0., 0.]
+                    };
+                    for i in 0..3 {
+                        // vertices.push(u[i]);
+                        uvs.push(u[i]);
+                    }
+                    let n = if vf[2] > 0 && vf[2] <= parsed.normals.len() {
+                        parsed.normals[vf[2] - 1]
+                    } else {
+                        [0., 0., 0.]
+                    };
+                    for i in 0..3 {
+                        // vertices.push(n[i]);
+                        normals.push(n[i]);
+                    }
+                }
                 for step in 0..(face.len() - 2) {
                     for i in 0..3 {
-                        let r = if i == 0 { 0 } else { i + step };
-                        let ti = face[r][0];
-                        if ti > 0 && ti - 1 < parsed.vertexes.len() {
-                            part.vertices.push(parsed.vertexes[ti - 1].pos);
-                            part.colors.push(parsed.vertexes[ti - 1].color);
-                        }
-                        let ti = face[r][1];
-                        if ti > 0 && ti - 1 < parsed.uvs.len() {
-                            part.uvs.push(parsed.uvs[ti - 1]);
-                        }
-                        let ti = face[r][2];
-                        if ti > 0 && ti - 1 < parsed.normals.len() {
-                            part.normals.push(parsed.normals[ti - 1]);
-                        }
+                        indexes.push((pf + if i == 0 { 0 } else { i + step }) as u32);
                     }
                 }
             }
-            out.parts.push(part);
+            buffers.set_vbo(0, vertices);
+            buffers.set_vbo(1, colors);
+            buffers.set_vbo(2, uvs);
+            buffers.set_vbo(3, normals);
+            let len = indexes.len();
+            buffers.set_ebo(indexes);
+            out.parts.push(Part {
+                material,
+                len,
+                buffers,
+                volume,
+            });
         }
         for material in parsed.materials.iter() {
             let p = &parsed.libs.0[material];
@@ -94,7 +175,7 @@ impl Model {
                     } else {
                         let t = out.textures.len();
                         texture_map.insert(pt.clone(), t);
-                        let (_, pt) = resources.load_texture(pt).unwrap();
+                        let (_, pt) = resource_manager.load_texture(pt).unwrap();
                         out.textures.push(Texture {
                             name: 0,
                             width: pt.width,
@@ -107,60 +188,26 @@ impl Model {
             }
             out.materials.push(mat);
         }
-        //sort parts so we reduce the number of material swaps
-        out.parts.sort_by(|f1, f2| {
-            if f1.material == f2.material {
-                Ordering::Equal
-            } else if f1.material < f2.material {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            }
-        });
         out
     }
-}
+    
+    pub fn visible(&self, transform: &Transform, frustrum: &Frustrum) -> bool {
+        for Part { volume, .. } in &self.parts {
+            if frustrum.has_volume(transform, volume) {
+                return true;
+            }
+        }
+        return false;
+    }
 
-impl Drawable for Model {
-    fn bake(&mut self, program: &ShaderProgram) {
-        if self.vao == 0 {
-            unsafe {
-                gl::GenVertexArrays(1, &mut self.vao);
-                gl::BindVertexArray(self.vao);
-            }
-            if self.vao == 0 {
-                return;
-            }
-            for m in &mut self.materials {
-                m.bake(&mut self.textures, program);
-            }
-            for p in &mut self.parts {
-                p.bake();
-            }
-            self.current_part = self.parts.len(); //force the binding of the vbos on first draw
-        }
-    }
-    
-    fn bind(&self) {
-        if self.vao != 0 {
-            unsafe {
-                gl::BindVertexArray(self.vao);
-            }
-        }
-    }
-    
-    fn draw(&mut self) {
-        if self.vao != 0 {
-            for (i, p) in self.parts.iter().enumerate() {
-                if p.material < self.materials.len() {
-                    self.materials[p.material].bind(&self.textures);
+    pub fn draw_instances(&self, count: usize, shader: Option<&MainShader>) {
+        for Part { material, len, buffers, .. } in &self.parts {
+            if let Some(shader) = shader {
+                if *material < self.materials.len() {
+                    self.materials[*material].bind(&self.textures, shader);
                 }
-                if self.current_part != i {
-                    self.current_part = i;
-                    p.bind();
-                }
-                p.draw();
             }
+            buffers.draw_instances(gl::TRIANGLES, 0, *len, count);
         }
     }
 }

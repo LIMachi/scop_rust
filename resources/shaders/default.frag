@@ -5,12 +5,13 @@ in vec3 color;
 in vec2 uv;
 in vec3 normal;
 flat in int f;
+flat in int material;
 
 out vec4 output_color;
 
 uniform float fade;
 
-uniform sampler2D ambient;
+uniform sampler2D ambient[128];
 
 uniform int light_count;
 uniform vec3 lights[128];
@@ -37,7 +38,7 @@ void main() {
 			vec3 light_dir = normalize(lights[i * 2] - pos);
 			accumulated_light += power * lights[i * 2 + 1] * max(dot(normal, light_dir), 0.);
 		}
-		output_color = (vec4(texture(ambient, uv).rgb, 1) * fade + /*vec4(color, 1)*/geo_color * (1 - fade)) * vec4(min(accumulated_light, 1), 1);
+		output_color = (vec4(texture(ambient[material], uv).rgb, 1) * fade + /*vec4(color, 1)*/geo_color * (1 - fade)) * vec4(min(accumulated_light, 1), 1);
 	}
 	if ((f & 4) == 4) {
 		output_color = output_color * 0.5 + vec4(0.5, 0.5, 0., 0.5);

@@ -1,278 +1,257 @@
-use std::collections::HashMap;
-use std::ffi::c_void;
-use std::mem::size_of;
-use gl::types::{GLint, GLsizei, GLsizeiptr, GLuint};
+use std::collections::HashSet;
+use std::os::raw::c_void;
+use gl::types::GLint;
 use crate::maths::matrix::{Mat4, Matrix};
 use crate::maths::transform::Transform;
-use crate::maths::vector::Vec3;
 use crate::opengl::enums::Shaders;
-use crate::opengl::object::Model;
-use crate::opengl::part::ObjectPart;
+use crate::opengl::main_shader::MainShader;
 use crate::opengl::safe_calls;
-use crate::opengl::shader::{Drawable, ShaderProgram, ShaderProgramBuilder};
+use crate::opengl::shader::{ShaderProgram, ShaderProgramBuilder};
 use crate::opengl::uniform::Uniform;
+use crate::other::itermap::IterMap;
 use crate::other::resource_manager::ResourceManager;
 
+#[derive(Debug)]
+struct PickingHandler {
+    shader: ShaderProgram,
+    camera_uniform: Uniform,
+    projection_uniform: Uniform,
+    instances_uniform: Uniform,
+    id_uniform: Uniform
+}
+
+impl PickingHandler {
+    fn new() -> Self {
+        let shader = ShaderProgramBuilder::default()
+            .add_shader(Shaders::Vertex, include_str!("picking.vert"))
+            .add_shader(Shaders::Fragment, include_str!("picking.frag"))
+            .build().unwrap();
+        Self {
+            camera_uniform: shader.uniform("camera"),
+            projection_uniform: shader.uniform("projection"),
+            instances_uniform: shader.uniform("object"),
+            id_uniform: shader.uniform("id"),
+            shader,
+        }
+    }
+}
+
+pub const MAX_BATCH_SIZE: usize = 128;
+
+#[derive(Debug)]
+pub struct Batch {
+    pub size: usize,
+    pub mat: [f32; MAX_BATCH_SIZE * 16],
+    pub rf: [i32; MAX_BATCH_SIZE],
+}
+
+impl Default for Batch {
+    fn default() -> Self {
+        Self {
+            size: 0,
+            mat: [0f32; MAX_BATCH_SIZE * 16],
+            rf: [0i32; MAX_BATCH_SIZE],
+        }
+    }
+}
+
+impl Batch {
+    pub fn bake(&self, shader: &MainShader) {
+        shader.object.raw_array_mat4(&self.mat);
+        shader.flags.array_int(&self.rf);
+    }
+}
+
+#[derive(Debug)]
+pub struct ObjectData {
+    pub transform: Transform,
+    pub raw_mat: [f32; 16],
+    pub flags: i32,
+    pub visible: bool,
+}
+
+impl ObjectData {
+    pub fn with_flags(mut self, flags: i32) -> Self {
+        self.flags = flags;
+        self
+    }
+}
+
+impl From<Transform> for ObjectData {
+    fn from(value: Transform) -> Self {
+        Self {
+            raw_mat: Mat4::from(&value).raw_array(),
+            transform: value,
+            flags: 0,
+            visible: true
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Scene {
-    pub objects_program: ShaderProgram,
-    pub lights_program: ShaderProgram,
-    pub test_program: ShaderProgram,
-    pub debug_program: ShaderProgram,
-    pub models: Vec<Model>,
-    pub camera: Transform,
-    pub camera_uniform: Uniform, //only updated when camera is modified
-    pub projection_uniform: Uniform, //only updated when aspect ratio changes (or later, when fov changes)
-    pub objects: HashMap<usize, (Transform, usize)>,
-    pub next_object_id: usize, //keep track of the next id that will be used by the object map (when spawning a new object, this value will be used as the id of the spawned object and increased)
-    pub object_transform_uniform: Uniform, //updated when rendering more than 1 object
-    pub object_flags_uniform: Uniform, //updated if 2 objects have different flags or when debug-ing Lights
-    pub lights: HashMap<usize, (Transform, Vec3)>,
-    pub next_light_id: usize, //same id system as the objects
-    pub lights_vao: GLuint,
-    pub lights_pos_vbo: GLuint,
-    pub lights_color_vbo: GLuint,
-    pub light_count_uniform: Uniform,
-    pub light_array_uniform: Uniform,
-    pub lights_camera_uniform: Uniform,
-    pub lights_projection_uniform: Uniform,
-    pub depth_map_fbo: GLuint,
-    pub depth_map: GLuint,
-    pub rebuild_flags: usize,
-    pub debug_vao: GLuint,
+    camera: Transform,
+    projection: Mat4,
+    next_instance_id: usize,
+    instances: IterMap<usize, IterMap<usize, ObjectData>>,
+    shader: MainShader,
+    picking_handler: PickingHandler,
+    batch_storage: Vec<Batch>
 }
 
 impl Scene {
-    pub fn new(objects_program: ShaderProgram, lights_program: ShaderProgram, initial_camera_transform: Transform, fov: f32, aspect_ratio: f32) -> Self {
-        objects_program.set_active();
-        let projection_uniform = objects_program.uniform("proj");
-        let projection = Matrix::projection(fov.to_radians(), aspect_ratio, 0.1, 10000.);
-        projection_uniform.mat4(projection);
-        let lights_projection_uniform = lights_program.uniform("proj");
-        let camera_uniform = objects_program.uniform("camera");
-        let view = initial_camera_transform.as_view_matrix();
-        camera_uniform.mat4(view);
-        let lights_camera_uniform = lights_program.uniform("camera");
-        lights_program.set_active();
-        lights_projection_uniform.mat4(projection);
-        lights_camera_uniform.mat4(view);
-        let mut lights_vao = 0;
-        let mut lights_pos_vbo = 0;
-        let mut lights_color_vbo = 0;
-        let mut depth_map_fbo = 0;
-        let mut depth_map = 0;
-        let mut debug_vao = 0;
-        unsafe {
-            gl::GenVertexArrays(1, &mut lights_vao);
-            gl::BindVertexArray(lights_vao);
-            gl::GenBuffers(1, &mut lights_pos_vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, lights_pos_vbo);
-            gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, ObjectPart::VEC3_SIZE as GLsizei, 0 as *const _);
-
-            gl::GenBuffers(1, &mut lights_color_vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, lights_color_vbo);
-            gl::VertexAttribPointer(1, 3, gl::FLOAT, gl::FALSE, ObjectPart::VEC3_SIZE as GLsizei, 0 as *const _);
-            
-            gl::GenFramebuffers(1, &mut depth_map_fbo); //generate a new frame buffer to store the output of a shader (instead of rendering to the default frame buffer, the one we swap every frame to refresh the screen)
-            
-            //setup the depth buffer texture (so we can store it and reuse it in another shader latter on)
-            gl::GenTextures(1, &mut depth_map);
-            gl::BindTexture(gl::TEXTURE_2D, depth_map);
-            //declare the texture as 1024*1024 pixels using the same format as the default depth texture used by the shaders
-            gl::TexImage2D(gl::TEXTURE_2D, 0, gl::DEPTH_COMPONENT as GLint, 1024, 1024, 0, gl::DEPTH_COMPONENT, gl::FLOAT, 0 as *const _);
-            //setup the default filtering (zoom effects) and tilling effects
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as GLint);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as GLint);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as GLint);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as GLint);
-            
-            gl::BindFramebuffer(gl::FRAMEBUFFER, depth_map_fbo);
-            //now bind the frame buffer to this texture
-            gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depth_map, 0);
-            gl::DrawBuffer(gl::NONE); //explicitly discard the color buffers (since this pass is only used to generate a depth map)
-            gl::ReadBuffer(gl::NONE);
-
-            gl::GenVertexArrays(1, &mut debug_vao);
-            let mut t = 0;
-            gl::BindVertexArray(debug_vao);
-            gl::GenBuffers(1, &mut t);
-            gl::BindBuffer(gl::ARRAY_BUFFER, t);
-            let fsqv: [f32; 24] = [
-                -1.,  1.,  0., 1.,
-                -1., -1.,  0., 0.,
-                1., -1.,  1., 0.,
-                -1.,  1.,  0., 1.,
-                1., -1.,  1., 0.,
-                1.,  1.,  1., 1.
-            ];
-            gl::BufferData(gl::ARRAY_BUFFER, size_of::<[f32; 24]>() as GLsizeiptr, fsqv.as_ptr() as *const c_void, gl::STATIC_DRAW);
-            gl::VertexAttribPointer(0, 2, gl::FLOAT, gl::FALSE, size_of::<[f32; 4]>() as GLsizei, 0 as *const _);
-            gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, size_of::<[f32; 4]>() as GLsizei, size_of::<[f32; 2]>() as *const _);
-        }
+    pub fn new(shader: ShaderProgram) -> Self {
         Self {
-            models: Vec::new(),
-            camera: initial_camera_transform,
-            camera_uniform,
-            projection_uniform,
-            objects: HashMap::new(),
-            next_object_id: 0,
-            object_transform_uniform: objects_program.uniform("object"),
-            object_flags_uniform: objects_program.uniform("flags"),
-            lights: HashMap::new(),
-            next_light_id: 0,
-            lights_vao,
-            lights_pos_vbo,
-            lights_color_vbo,
-            light_count_uniform: objects_program.uniform("light_count"),
-            light_array_uniform: objects_program.uniform("Lights"),
-            lights_camera_uniform,
-            objects_program,
-            rebuild_flags: 0,
-            lights_program,
-            lights_projection_uniform,
-            depth_map_fbo,
-            depth_map,
-            debug_vao,
-            test_program: ShaderProgramBuilder::default().add_shader(Shaders::Vertex, include_str!("lights/lights.vert")).add_shader(Shaders::Fragment, include_str!("lights/lights.frag")).build().unwrap(),
-            debug_program: ShaderProgramBuilder::default().add_shader(Shaders::Vertex, include_str!("lights/debug.vert")).add_shader(Shaders::Fragment, include_str!("lights/debug.frag")).build().unwrap()
+            camera: Transform::default(),
+            projection: Mat4::identity(),
+            next_instance_id: 0,
+            instances: IterMap::new(),
+            shader: MainShader::new(shader),
+            picking_handler: PickingHandler::new(),
+            batch_storage: Vec::new()
         }
     }
     
-    pub fn update_projection(&self, fov: f32, aspect_ratio: f32) {
-        let projection = Matrix::projection(fov.to_radians(), aspect_ratio, 0.1, 10000.);
-        self.objects_program.set_active();
-        self.projection_uniform.mat4(projection);
-        self.lights_program.set_active();
-        self.lights_projection_uniform.mat4(projection);
+    pub fn set_projection(&mut self, fov: f32, aspect_ratio: f32) {
+        let proj = Matrix::projection(fov.to_radians(), aspect_ratio, 0.01, 1000.);
+        self.shader.program.set_active();
+        self.shader.projection.mat4(proj);
+        self.projection = proj;
+        self.picking_handler.shader.set_active();
+        self.picking_handler.projection_uniform.mat4(proj);
     }
     
-    pub fn load_model<S: Into<String>>(&mut self, resources: &mut ResourceManager, name: S) -> usize {
-        // let po = resources.load_object(name);
-        // if po.present() {
-        //     let mut model = Model::new(resources, &po);
-        //     model.bake(&self.objects_program);
-        //     self.models.push(model);
-        //     self.models.len()
-        // } else {
-        //     0
-        // }
-        0
+    pub fn set_camera(&mut self, camera: Transform) {
+        let mat = camera.as_view_matrix();
+        self.shader.program.set_active();
+        self.shader.camera.mat4(mat);
+        self.picking_handler.shader.set_active();
+        self.picking_handler.camera_uniform.mat4(mat);
+        self.camera = camera;
     }
     
-    pub fn spawn_object(&mut self, model: usize, transform: Transform) -> usize {
-        if model > 0 && model <= self.models.len() {
-            self.objects.insert(self.next_object_id, (transform, model - 1));
-            self.next_object_id += 1;
-            self.next_object_id - 1
-        } else {
-            0
+    pub fn get_camera(&self) -> Transform { self.camera }
+    
+    pub fn get_projection(&self) -> Mat4 { self.projection }
+
+    pub fn spawn_object(&mut self, model: usize, data: ObjectData) -> usize {
+        let v = self.instances.get_mut_or_insert(&model, |_| IterMap::new());
+        v.insert(self.next_instance_id, data);
+        self.next_instance_id += 1;
+        self.next_instance_id - 1
+    }
+    
+    pub fn despawn_object(&mut self, id: usize) {
+        let mut check = None;
+        for (k, v) in self.instances.iter_mut() {
+            if let Some(_) = v.remove(&id) {
+                check = Some(*k);
+                break;
+            }
+        }
+        if let Some(c) = check {
+            if self.instances.get(&c).unwrap().len() == 0 {
+                self.instances.remove(&c);
+            }
         }
     }
-    
-    pub fn get_object_mut(&mut self, id: usize) -> Option<&mut Transform> {
-        self.objects.get_mut(&id).map(|v| &mut v.0)
+
+    fn extract_batches<'a>(storage: &mut Vec<Batch>, instances: impl Iterator<Item = &'a ObjectData>) {
+        storage.clear();
+        storage.push(Batch::default());
+        for ObjectData { transform, raw_mat, flags, visible } in instances {
+            let batch = {
+                if storage.last().unwrap().size == MAX_BATCH_SIZE {
+                    storage.push(Batch::default());
+                }
+                storage.last_mut().unwrap()
+            };
+            for i in 0..16 {
+                batch.mat[batch.size * 16 + i] = raw_mat[i];
+            }
+            batch.rf[batch.size] = *flags;
+            batch.size += 1;
+        }
     }
-    
-    pub fn despawn_object(&mut self, id: usize) -> bool { self.objects.remove(&id).is_some() }
-    
-    pub fn spawn_light(&mut self, transform: Transform, color: Vec3) -> usize {
-        self.lights.insert(self.next_light_id, (transform, color));
-        self.rebuild_flags |= 2;
-        self.next_light_id += 1;
-        self.next_light_id - 1
-    }
-    
-    pub fn get_light_mut(&mut self, id: usize) -> Option<&mut (Transform, Vec3)> {
-        self.rebuild_flags |= 2;
-        self.lights.get_mut(&id)
-    }
-    
-    pub fn despawn_light(&mut self, id: usize) -> bool {
-        self.rebuild_flags |= 2;
-        self.lights.remove(&id).is_some()
-    }
-    
-    pub fn get_camera_mut(&mut self) -> &mut Transform {
-        self.rebuild_flags |= 1;
-        &mut self.camera
-    }
-    
-    //debug the camera as if it was a spotlight
-    pub fn directional_light_depth_map(&mut self) {
-        self.camera_uniform.mat4(self.camera.as_view_matrix());
-        self.projection_uniform.mat4(Mat4::orthographic(1024., 1., 0.1, 1000.));
-        self.test_program.set_active();
-        let (pw, ph) = safe_calls::get_size();
-        safe_calls::resize(1024, 1024);
+
+    pub fn pick(&mut self, resources: &ResourceManager, pixel_x: usize, pixel_y: usize, set: Option<&HashSet<usize>>) -> Option<usize> {
+        let mut acc_vec = Vec::new();
+        safe_calls::clear_screen();
+        self.picking_handler.shader.set_active();
+        for (model, instances) in self.instances.iter_mut() {
+            if let Some(mpm) = resources.get_multipart_model(*model) {
+                if let Some(set) = set {
+                    Self::extract_batches(&mut self.batch_storage, instances.iter().filter_map(|(id, v)| {
+                        if v.visible && set.contains(id) {
+                            Some(v)
+                        } else {
+                            None
+                        }
+                    }));
+                } else {
+                    Self::extract_batches(&mut self.batch_storage, instances.iter_values().filter(|v| v.visible));
+                }
+                let l = acc_vec.len();
+                for (c, Batch { size, mat, rf }) in self.batch_storage.iter().enumerate() {
+                    // self.picking_handler.instances_uniform.raw_array_mat4(&mat[0..*size * 16]);
+                    self.picking_handler.id_uniform.int((l + c * MAX_BATCH_SIZE) as i32);
+                    mpm.draw_instances(*size, None);
+                }
+                acc_vec.extend(instances.iter().map(|(k, _)| *k));
+            }
+        }
+        let t = [0u8; 4];
         unsafe {
-            gl::BindFramebuffer(gl::FRAMEBUFFER, self.depth_map_fbo);
-            gl::Clear(gl::DEPTH_BUFFER_BIT);
-            //setup
-            for (_, (tr, i)) in &self.objects {
-                if *i < self.models.len() {
-                    self.models[*i].bind();
-                    self.object_flags_uniform.int(self.models[*i].render_flags);
-                    self.object_transform_uniform.mat4(Mat4::from(*tr));
-                    self.models[*i].draw();
+            gl::Flush();
+            gl::Finish();
+            gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
+            gl::ReadPixels(pixel_x as GLint, pixel_y as GLint, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, t.as_ptr() as *mut f32 as *mut c_void);
+        }
+        let id = t[3] as usize | ((t[2] as usize) << 8) | ((t[1] as usize) << 16) | ((t[0] as usize) << 24);
+        if id > 0 && id <= acc_vec.len() {
+            Some(acc_vec[id - 1])
+        } else {
+            None
+        }
+    }
+    
+    pub fn draw(&mut self, resources: &ResourceManager, set: Option<&HashSet<usize>>) {
+        self.shader.program.set_active();
+        for (model, instances) in self.instances.iter_mut() {
+            if let Some(mpm) = resources.get_multipart_model(*model) {
+                if let Some(set) = set {
+                    Self::extract_batches(&mut self.batch_storage, instances.iter().filter_map(|(id, v)| {
+                        if v.visible && set.contains(id) {
+                            Some(v)
+                        } else {
+                            None
+                        }
+                    }));
+                } else {
+                    Self::extract_batches(&mut self.batch_storage, instances.iter_values().filter(|v| v.visible));
+                }
+                for Batch { size, mat, rf } in &self.batch_storage {
+                    self.shader.object.raw_array_mat4(&mat[0..*size * 16]);
+                    self.shader.flags.array_int(&rf[0..*size]);
+                    mpm.draw_instances(*size, Some(&self.shader));
                 }
             }
-            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
-        }
-        safe_calls::resize(pw, ph);
-        self.debug_program.set_active();
-        safe_calls::clear_screen();
-        self.debug_program.uniform("tex").int(self.depth_map as i32);
-        unsafe {
-            gl::BindVertexArray(self.debug_vao);
-            gl::DrawArrays(gl::TRIANGLES, 0, 24);
         }
     }
-    
-    pub fn draw(&mut self) {
-        if (self.rebuild_flags & 1) == 1 {
-            let view = self.camera.as_view_matrix();
-            self.objects_program.set_active();
-            self.camera_uniform.mat4(view);
-            self.lights_program.set_active();
-            self.lights_camera_uniform.mat4(view);
-        }
-        if (self.rebuild_flags & 2) == 2 {
-            let mut weave = Vec::with_capacity(self.lights.len() * 2);
-            let mut pos = Vec::with_capacity(self.lights.len());
-            let mut color = Vec::with_capacity(self.lights.len());
-            for (_, (tr, c)) in &self.lights {
-                let p = <[f32; 3]>::from(tr.pos);
-                let c = <[f32; 3]>::from(*c);
-                weave.push(p);
-                weave.push(c);
-                pos.push(p);
-                color.push(c);
-            }
-            self.lights_program.set_active();
-            unsafe {
-                gl::BindVertexArray(self.lights_vao);
-                gl::BindBuffer(gl::ARRAY_BUFFER, self.lights_pos_vbo);
-                gl::BufferData(gl::ARRAY_BUFFER, (ObjectPart::VEC3_SIZE * pos.len()) as GLsizeiptr, pos.as_ptr() as *const c_void, gl::STATIC_DRAW);
-                gl::BindBuffer(gl::ARRAY_BUFFER, self.lights_color_vbo);
-                gl::BufferData(gl::ARRAY_BUFFER, (ObjectPart::VEC3_SIZE * color.len()) as GLsizeiptr, color.as_ptr() as *const c_void, gl::STATIC_DRAW);
-            }
-            self.objects_program.set_active();
-            self.light_count_uniform.int(pos.len() as i32);
-            self.light_array_uniform.array3f(&weave);
-        }
-        self.objects_program.set_active();
-        for (_, (tr, i)) in &self.objects {
-            if *i < self.models.len() {
-                self.models[*i].bind();
-                self.object_flags_uniform.int(self.models[*i].render_flags);
-                self.object_transform_uniform.mat4(Mat4::from(*tr));
-                self.models[*i].draw();
+
+    pub fn run_on_instance<F: FnMut(usize, usize, &mut ObjectData)>(&mut self, id: usize, mut runner: F) {
+        for (model, v) in self.instances.iter_mut() {
+            if let Some(v) = v.get_mut(&id) {
+                runner(*model, id, v);
+                return;
             }
         }
-        self.lights_program.set_active();
-        if self.lights_vao != 0 {
-            unsafe {
-                gl::BindVertexArray(self.lights_vao);
-                gl::DrawArrays(gl::POINTS, 0, self.lights.len() as GLsizei);
+    }
+
+    pub fn run_on_instances<F: FnMut(usize, usize, &mut ObjectData)>(&mut self, mut runner: F) {
+        for (model, v) in self.instances.iter_mut() {
+            for (id, v) in v.iter_mut() {
+                runner(*model, *id, v);
             }
         }
     }
